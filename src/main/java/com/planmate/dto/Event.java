@@ -10,6 +10,8 @@ import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 @Entity
 @Table(name = "event")
 public class Event extends PlanMateEntity {
@@ -24,8 +26,10 @@ public class Event extends PlanMateEntity {
 
 	private String title;
 
+    @JsonFormat(pattern="yyyy-MM-dd HH:mm:ss")
 	private Timestamp startTime;
 
+    @JsonFormat(pattern="yyyy-MM-dd HH:mm:ss")
 	private Timestamp endTime;
 
 	private String description;
