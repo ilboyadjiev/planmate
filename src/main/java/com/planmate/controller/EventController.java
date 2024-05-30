@@ -1,0 +1,60 @@
+package com.planmate.controller;
+
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.planmate.dto.Event;
+import com.planmate.service.EventService;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@RestController
+@RequestMapping("/api/v1/events")
+//@Api(value = "Event Management Interface", tags = "Events")
+@Tag(name = "Event Controller", description = "Event Management Interface")
+public class EventController {
+
+	@Autowired
+	private EventService eventService;
+
+	@GetMapping
+	@Operation(summary = "Get all events, no filtering. Use with caution.")
+	public ResponseEntity<List<Event>> getAllEvents() {
+		return new ResponseEntity<>(eventService.getAllEvents(), HttpStatus.OK);
+	}
+
+	@GetMapping("/{user}")
+	public ResponseEntity<List<Event>> getEventForUser(@PathVariable String user) {
+		return new ResponseEntity<>(eventService.getAllEventsForUser(user), HttpStatus.OK);
+	}
+	
+	@PostMapping("")
+	public ResponseEntity<Event> createEvent(@RequestBody Event event) {
+		return new ResponseEntity<>(eventService.createNewEvent(event), HttpStatus.OK);
+	}
+
+	@PutMapping("/{id}")
+	public ResponseEntity<Event> updateEvent(@PathVariable Long id) {
+		Event toUpdate = eventService.getEventById(id);
+		return new ResponseEntity<>(eventService.updateEvent(toUpdate), HttpStatus.OK);
+	}
+
+	@DeleteMapping("/{id}")
+	public ResponseEntity<Event> deleteEvent(@PathVariable Long id) {
+		Event toDelete = eventService.getEventById(id);
+		boolean success = eventService.deleteEvent(toDelete);
+		return new ResponseEntity<>(success ? HttpStatus.OK : HttpStatus.INTERNAL_SERVER_ERROR);
+	}
+}
