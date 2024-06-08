@@ -12,7 +12,7 @@ public interface EventService {
 
 	Event getEventById(final Long id);
 
-	Event createNewEvent(Event event);
+	Event createNewEvent(Event event, String createdBy);
 
 	Event updateEvent(Long id, Event event);
 

@@ -1,5 +1,6 @@
 package com.planmate.dto;
 
+import java.io.Serializable;
 import java.sql.Timestamp;
 
 import javax.persistence.Entity;
@@ -12,16 +13,17 @@ import javax.persistence.Table;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 
+@SuppressWarnings("serial")
 @Entity
 @Table(name = "event")
-public class Event extends PlanMateEntity {
+public class Event extends PlanMateEntity implements Serializable {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "username", referencedColumnName = "email")
+    @JoinColumn(name = "created_by", referencedColumnName = "email")
     private User user;
 
 	private String title;

@@ -1,7 +1,5 @@
 package com.planmate.dao;
 
-import java.sql.Timestamp;
-import java.time.Instant;
 import java.util.List;
 
 import org.hibernate.Session;
@@ -10,7 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
 import com.planmate.dto.Event;
-import com.planmate.util.EntityUtil;
 
 @Repository
 public class EventDaoImpl implements EventDAO {
@@ -30,8 +27,8 @@ public class EventDaoImpl implements EventDAO {
 	@Override
 	public List<Event> getAllEventsForUser(final String user) {
 		Session session = sessionFactory.getCurrentSession();
-		String hql = "FROM Event e WHERE e.username = :user ";
-		return session.createQuery(hql).setParameter("username", user).list();
+		String hql = "FROM Event e WHERE e.user.email = :user ";
+		return session.createQuery(hql).setParameter("user", user).list();
 	}
 
 	@Override
@@ -42,8 +39,8 @@ public class EventDaoImpl implements EventDAO {
 	}
 
 	@Override
-	public Event createNewEvent(Event event) {
-		EntityUtil.fillAbstractEntityAttributes(event);
+	public Event createNewEvent(Event event, String createdBy) {
+		//EntityUtil.fillAbstractEntityAttributes(event);
 		return updateEvent(event);
 	}
 

@@ -62,4 +62,12 @@ public class UserDaoImpl implements UserDAO {
 		Long count = (Long) session.createQuery(hql).setParameter("email", email).uniqueResult();
 		return count > 0;
 	}
+
+	@Override
+	public boolean isUsernameDuplicate(String username) {
+		Session session = sessionFactory.getCurrentSession();
+		String hql = "SELECT COUNT(u.username) FROM User u WHERE u.username = :username";
+		Long count = (Long) session.createQuery(hql).setParameter("username", username).uniqueResult();
+		return count > 0;
+	}
 }

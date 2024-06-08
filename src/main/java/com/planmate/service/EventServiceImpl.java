@@ -5,18 +5,20 @@ import java.util.List;
 import javax.transaction.Transactional;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import com.planmate.dao.EventDAO;
 import com.planmate.dto.Event;
-import com.planmate.exception.BusinessLogicException;
+import com.planmate.dto.User;
 
 @Service
 public class EventServiceImpl implements EventService {
 
 	@Autowired
 	private EventDAO eventDAO;
+
+	@Autowired
+	private UserService userService;
 
 	@Transactional
 	@Override
@@ -38,8 +40,12 @@ public class EventServiceImpl implements EventService {
 
 	@Transactional
 	@Override
-	public Event createNewEvent(Event event) {
-		return eventDAO.createNewEvent(event);
+	public Event createNewEvent(Event event, String createdBy) {
+		User creator = userService.getUserByEmail(createdBy);
+		if (creator != null) {
+			event.setUser(creator);
+		}
+		return eventDAO.createNewEvent(event, createdBy);
 	}
 
 	@Transactional

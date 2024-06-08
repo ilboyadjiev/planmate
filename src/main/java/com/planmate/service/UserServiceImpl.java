@@ -58,4 +58,16 @@ public class UserServiceImpl implements UserService {
 		return userDAO.getUserByUsername(username);
 	}
 
+	@Transactional
+	@Override
+	public Boolean checkEmailAvailable(String emailToCheck) {
+		return !userDAO.isEmailDuplicate(emailToCheck);
+	}
+
+	@Transactional
+	@Override
+	public Boolean checkUsernameAvailable(String usernameToCheck) {
+		return !userDAO.isUsernameDuplicate(usernameToCheck);
+	}
+
 }

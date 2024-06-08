@@ -12,7 +12,7 @@ public interface EventDAO {
 
 	Event getEventById(final Long id);
 
-	Event createNewEvent(Event event);
+	Event createNewEvent(Event event, String createdBy);
 
 	Event updateEvent(Event event);
 

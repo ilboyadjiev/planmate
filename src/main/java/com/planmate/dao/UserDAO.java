@@ -19,4 +19,6 @@ public interface UserDAO {
 	User updateUser(User user);
 
 	boolean isEmailDuplicate(String email);
+
+	boolean isUsernameDuplicate(String username);
 }
