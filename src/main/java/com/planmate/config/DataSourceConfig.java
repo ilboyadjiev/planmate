@@ -20,6 +20,9 @@ public class DataSourceConfig {
 
     @Value("${spring.datasource.url}")
     private String url;
+    
+    @Value("${spring.datasource.url.localenv}")
+    private String urlLocalEnv;
 
     @Value("${spring.datasource.username}")
     private String username;
@@ -36,6 +39,9 @@ public class DataSourceConfig {
     @Value("${hibernate.hbm2ddl.auto}")
     private String hibernateHbm2ddlAuto;
 
+    @Value("${spring.application.environment}")
+    private String environment;
+
     @Bean
     public LocalSessionFactoryBean sessionFactory() {
         LocalSessionFactoryBean sessionFactory = new LocalSessionFactoryBean();
@@ -49,7 +55,11 @@ public class DataSourceConfig {
     public DataSource dataSource() {
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName(driverClassName);
-        dataSource.setUrl(url);
+        if ("local".equalsIgnoreCase(environment)) {
+        	dataSource.setUrl(urlLocalEnv);
+        } else {
+        	dataSource.setUrl(url);
+        }
         dataSource.setUsername(username);
         dataSource.setPassword(password);
         return dataSource;

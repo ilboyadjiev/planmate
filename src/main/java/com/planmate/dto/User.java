@@ -28,12 +28,21 @@ public class User {
 	//@ApiModelProperty(notes = "The user's last name")
 	private String lastName;
 
-	@Column(name = "email")
+	@Column(name = "email", unique = true)
 	//@ApiModelProperty(notes = "The email of the contact")
 	private String email;
 
 	@Column(name = "password")
+	//@ApiModelProperty(notes = "Password")
 	private String password;
+
+	@Column(name = "role")
+	//@ApiModelProperty(notes = "The role of the user")
+	private String role;
+
+	@Column(name = "username", unique = true)
+	//@ApiModelProperty(notes = "A custom display name")
+	private String username;
 
 	@OneToOne(cascade = CascadeType.ALL)
     @JoinColumn(name = "contact_id", referencedColumnName = "id")
@@ -90,6 +99,22 @@ public class User {
 
 	public void setEmail(String email) {
 		this.email = email;
+	}
+
+	public String getRole() {
+		return role;
+	}
+
+	public void setRole(String role) {
+		this.role = role;
+	}
+
+	public String getUsername() {
+		return username;
+	}
+
+	public void setUsername(String username) {
+		this.username = username;
 	}
 
 }

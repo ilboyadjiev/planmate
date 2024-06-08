@@ -13,8 +13,9 @@ public class WebConfig {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
+            	System.out.println("Enabled all origins");
                 registry.addMapping("/api/**")
-                        .allowedOrigins("http://localhost:3000") // Adjust the origin as per your setup
+                        .allowedOriginPatterns("*") // Adjust the origin as per your setup
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
                         .allowCredentials(true);

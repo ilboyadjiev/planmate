@@ -28,6 +28,20 @@ public class UserDaoImpl implements UserDAO {
 		Session currentSession = sessionFactory.getCurrentSession();
 		return currentSession.get(User.class, id);
 	}
+	
+	@Override
+	public User getUserByEmail(String email) {
+		Session session = sessionFactory.getCurrentSession();
+		String hql = "FROM User u WHERE u.email = :email";
+		return (User) session.createQuery(hql).setParameter("email", email).uniqueResult();
+	}
+	
+	@Override
+	public User getUserByUsername(String username) {
+		Session session = sessionFactory.getCurrentSession();
+		String hql = "FROM User u WHERE u.username = :username";
+		return (User) session.createQuery(hql).setParameter("email", username).uniqueResult();
+	}
 
 	@Override
 	public User createUser(User user) {

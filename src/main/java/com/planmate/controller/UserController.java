@@ -31,21 +31,20 @@ public class UserController {
 
 	@PostMapping("/register")
 	@Operation(summary = "Create a new user")
-	public ResponseEntity<User> createUser(@RequestBody User user) {
-		// validate
-
-		// delegate
-		User created = userService.createUser(user);
-		if (created == null) {
-			return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-		}
-		return new ResponseEntity<>(created, HttpStatus.CREATED);
+	public ResponseEntity<String> createUser(@RequestBody User user) {
+		return new ResponseEntity<>("Please use /api/v1/auth/register", HttpStatus.METHOD_NOT_ALLOWED);
 	}
 
 	@GetMapping("/all")
 	public ResponseEntity<List<User>> getUsers(){
 		List<User> allUsers = userService.getAllUsers();
 		return new ResponseEntity<>(allUsers, HttpStatus.OK);
+	}
+
+	@GetMapping("/{email}")
+	public ResponseEntity<User> getUserByEmail(@PathVariable String email){
+		User foundUser = userService.getUserByEmail(email);
+		return new ResponseEntity<>(foundUser, HttpStatus.OK);
 	}
 
 	@PutMapping("/{id}")

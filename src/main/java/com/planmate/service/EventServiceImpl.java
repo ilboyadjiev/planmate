@@ -5,10 +5,12 @@ import java.util.List;
 import javax.transaction.Transactional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import com.planmate.dao.EventDAO;
 import com.planmate.dto.Event;
+import com.planmate.exception.BusinessLogicException;
 
 @Service
 public class EventServiceImpl implements EventService {
@@ -42,8 +44,9 @@ public class EventServiceImpl implements EventService {
 
 	@Transactional
 	@Override
-	public Event updateEvent(Event event) {
-		return eventDAO.updateEvent(event);
+	public Event updateEvent(Long id, Event event) {
+		Event updatedEvent = eventDAO.updateEvent(event);
+		return updatedEvent;
 	}
 
 	@Transactional

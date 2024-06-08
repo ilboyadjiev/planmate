@@ -10,6 +10,10 @@ public interface UserDAO {
 
 	User getUserById(Long id);
 
+	User getUserByEmail(String email);
+
+	User getUserByUsername(String username);
+
 	User createUser(User user);
 	
 	User updateUser(User user);

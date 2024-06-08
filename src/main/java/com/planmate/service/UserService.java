@@ -8,6 +8,10 @@ public interface UserService {
 
 	List<User> getAllUsers();
 
+	User getUserByEmail(String email);
+
+	User getUserByUsername(String username);
+
 	User createUser(User user);
 
 	User updateUser(Long id, User user);
