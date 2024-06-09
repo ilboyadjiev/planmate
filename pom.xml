@@ -119,6 +119,23 @@
 					</excludes>
 				</configuration>
 			</plugin>
+			<plugin>
+				<groupId>io.fabric8</groupId>
+				<artifactId>docker-maven-plugin</artifactId>
+				<version>0.39.0</version>
+				<configuration>
+					<dockerHost>tcp://localhost:2375</dockerHost>
+					<verbose>true</verbose>
+					<images>
+						<image>
+							<name>planmate-backend</name>
+							<build>
+								<dockerFileDir>${project.basedir}</dockerFileDir>
+							</build>
+						</image>
+					</images>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 

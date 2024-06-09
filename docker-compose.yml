@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: 'iliandocker/planmate-docker-repo:planmate-postgres'
+    environment:
+      - 'POSTGRES_DB=planmate'
+      - 'POSTGRES_USER=planmate'
+      - 'POSTGRES_PASSWORD=pass123'
+    ports:
+      - '5432:5432'
+    networks:
+      - planmate-network
+    volumes:
+      - planmate-volume:/data/db
+
+  backend:
+    image: 'iliandocker/planmate-docker-repo:planmate-backend'
+    container_name: planmate-backend
+    environment:
+      - 'SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/planmate'
+      - 'SPRING_DATASOURCE_USERNAME=planmate'
+      - 'SPRING_DATASOURCE_PASSWORD=pass123'
+      - 'SPRING_APPLICATION_ENVIRONMENT=docker'
+    networks:
+      - planmate-network
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+
+  frontend:
+    image: 'iliandocker/planmate-docker-repo:planmate-frontend'
+    container_name: planmate-frontend
+    environment:
+      - REACT_APP_BACKEND_BASE_URL=
+    networks:
+      - planmate-network
+
+
+  nginx:
+    image: nginx:alpine
+    container_name: planmate-nginx
+    volumes:
+      - ../planmate-frontend/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - planmate-network
+
+volumes:
+  planmate-volume:
+    driver: local
+
+networks:
+  planmate-network:
+    name: planmate-network
+    driver: bridge

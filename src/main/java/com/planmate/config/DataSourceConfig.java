@@ -60,6 +60,7 @@ public class DataSourceConfig {
         } else {
         	dataSource.setUrl(url);
         }
+        System.out.println("Using data source url: " + dataSource.getUrl());
         dataSource.setUsername(username);
         dataSource.setPassword(password);
         return dataSource;
