@@ -40,7 +40,7 @@ public class UserDaoImpl implements UserDAO {
 	public User getUserByUsername(String username) {
 		Session session = sessionFactory.getCurrentSession();
 		String hql = "FROM User u WHERE u.username = :username";
-		return (User) session.createQuery(hql).setParameter("email", username).uniqueResult();
+		return (User) session.createQuery(hql).setParameter("username", username).uniqueResult();
 	}
 
 	@Override
