@@ -1,5 +1,7 @@
 package com.planmate;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
@@ -12,8 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class PlanmateApplication extends SpringBootServletInitializer {
 
+    private static final Logger logger = LoggerFactory.getLogger(PlanmateApplication.class);
+
     public static void main(String[] args) {
         SpringApplication.run(PlanmateApplication.class, args);
+        logger.info("Planmate started successfully.");
     }
 
     @Override
