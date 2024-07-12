@@ -2,6 +2,8 @@ package com.planmate.controller;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +28,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "User Controller", description = "User Management Interface")
 public class UserController {
 
+    private static final Logger logger = LoggerFactory.getLogger(UserController.class);
+
 	@Autowired
 	private UserService userService;
 
@@ -38,6 +42,7 @@ public class UserController {
 	@GetMapping("/all")
 	public ResponseEntity<List<User>> getUsers(){
 		List<User> allUsers = userService.getAllUsers();
+		logger.info("Getting all users.");
 		return new ResponseEntity<>(allUsers, HttpStatus.OK);
 	}
 
