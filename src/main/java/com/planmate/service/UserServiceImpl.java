@@ -57,6 +57,12 @@ public class UserServiceImpl implements UserService {
 	public User getUserByUsername(String username) {
 		return userDAO.getUserByUsername(username);
 	}
+	
+	@Transactional
+	@Override
+	public User getUserById(Long id) {
+		return userDAO.getUserById(id);
+	}
 
 	@Transactional
 	@Override
@@ -68,6 +74,12 @@ public class UserServiceImpl implements UserService {
 	@Override
 	public Boolean checkUsernameAvailable(String usernameToCheck) {
 		return !userDAO.isUsernameDuplicate(usernameToCheck);
+	}
+
+	@Transactional
+	@Override
+	public List<User> searchUsernames(String user, String searchText) {
+		return userDAO.searchUsernames(user, searchText);
 	}
 
 }

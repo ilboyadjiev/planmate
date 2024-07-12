@@ -70,4 +70,14 @@ public class UserDaoImpl implements UserDAO {
 		Long count = (Long) session.createQuery(hql).setParameter("username", username).uniqueResult();
 		return count > 0;
 	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public List<User> searchUsernames(String user, String searchText) {
+		Session session = sessionFactory.getCurrentSession();
+		String hql = "FROM User u WHERE u.username like :username and u.username != :current_user";
+		List<User> users = session.createQuery(hql).setParameter("username", "%" + searchText + "%").setParameter("current_user", user).setMaxResults(50)
+				.list();
+		return users;
+	}
 }

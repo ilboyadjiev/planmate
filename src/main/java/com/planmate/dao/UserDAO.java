@@ -21,4 +21,6 @@ public interface UserDAO {
 	boolean isEmailDuplicate(String email);
 
 	boolean isUsernameDuplicate(String username);
+
+	List<User> searchUsernames(String user, String searchText);
 }
