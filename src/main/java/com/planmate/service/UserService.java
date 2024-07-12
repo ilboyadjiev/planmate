@@ -12,6 +12,8 @@ public interface UserService {
 
 	User getUserByUsername(String username);
 
+	User getUserById(Long id);
+
 	User createUser(User user);
 
 	User updateUser(Long id, User user);
@@ -19,4 +21,6 @@ public interface UserService {
 	Boolean checkEmailAvailable(String emailToCheck);
 
 	Boolean checkUsernameAvailable(String usernameToCheck);
+
+	List<User> searchUsernames(String user, String searchText);
 }

@@ -13,11 +13,16 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
+import com.planmate.service.FriendshipService;
 import com.planmate.service.UserService;
+import com.planmate.util.JwtUtil;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,8 +35,14 @@ public class UserController {
 
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
+    @Autowired
+    private JwtUtil jwtUtil;
+
 	@Autowired
 	private UserService userService;
+
+	@Autowired
+	private FriendshipService friendshipService;
 
 	@PostMapping("/register")
 	@Operation(summary = "Create a new user")
@@ -72,5 +83,26 @@ public class UserController {
 		} catch (RuntimeException e) {
 			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 		}
+	}
+
+	@GetMapping("/{id}/friends")
+	public ResponseEntity<List<Friendship>> getFriendsListByUserId(@PathVariable Long id) {
+		List<Friendship> friends = friendshipService.getFriendshipList(id);
+		return new ResponseEntity<>(friends, HttpStatus.OK);
+	}
+
+	@GetMapping("/search")
+	public ResponseEntity<List<User>> searchUsernames(@RequestParam String term, @RequestHeader("Authorization") String authorizationHeader){
+        // Retrieve the currently logged in user
+		String username = "";
+		if (authorizationHeader != null) {
+			String jwtToken = authorizationHeader.replace("Bearer ", "");
+			username = jwtUtil.extractUsername(jwtToken);
+		} else {
+			return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+		}
+
+		List<User> results = userService.searchUsernames(username, term);
+		return new ResponseEntity<>(results, HttpStatus.OK);
 	}
 }
