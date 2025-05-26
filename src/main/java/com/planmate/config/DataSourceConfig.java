@@ -4,15 +4,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.springframework.orm.hibernate5.HibernateTransactionManager;
-import org.springframework.orm.hibernate5.LocalSessionFactoryBean;
-import org.springframework.transaction.annotation.EnableTransactionManagement;
+// No hibernate5 imports
+// No @EnableTransactionManagement import
 
-import javax.sql.DataSource;
-import java.util.Properties;
+import jakarta.sql.DataSource;
+// No java.util.Properties import if hibernateProperties method is removed
 
 @Configuration
-@EnableTransactionManagement
+// No @EnableTransactionManagement annotation
 public class DataSourceConfig {
 
     @Value("${spring.datasource.driver-class-name}")
@@ -30,26 +29,20 @@ public class DataSourceConfig {
     @Value("${spring.datasource.password}")
     private String password;
 
-    @Value("${spring.jpa.properties.hibernate.dialect}")
-    private String hibernateDialect;
-
-    @Value("${spring.jpa.show-sql}")
-    private String hibernateShowSql;
-
-    @Value("${hibernate.hbm2ddl.auto}")
-    private String hibernateHbm2ddlAuto;
+    // These properties would be used by Spring Boot auto-configuration
+    // if present in application.properties (e.g., spring.jpa.properties.hibernate.dialect)
+    // They are no longer directly used by this Java config class.
+    // @Value("${spring.jpa.properties.hibernate.dialect}")
+    // private String hibernateDialect;
+    //
+    // @Value("${spring.jpa.show-sql}")
+    // private String hibernateShowSql;
+    //
+    // @Value("${hibernate.hbm2ddl.auto}")
+    // private String hibernateHbm2ddlAuto;
 
     @Value("${spring.application.environment}")
     private String environment;
-
-    @Bean
-    public LocalSessionFactoryBean sessionFactory() {
-        LocalSessionFactoryBean sessionFactory = new LocalSessionFactoryBean();
-        sessionFactory.setDataSource(dataSource());
-        sessionFactory.setPackagesToScan("com.planmate.dto");
-        sessionFactory.setHibernateProperties(hibernateProperties());
-        return sessionFactory;
-    }
 
     @Bean
     public DataSource dataSource() {
@@ -66,18 +59,7 @@ public class DataSourceConfig {
         return dataSource;
     }
 
-    @Bean
-    public HibernateTransactionManager transactionManager() {
-        HibernateTransactionManager txManager = new HibernateTransactionManager();
-        txManager.setSessionFactory(sessionFactory().getObject());
-        return txManager;
-    }
-
-    private Properties hibernateProperties() {
-        Properties properties = new Properties();
-        properties.put("hibernate.dialect", hibernateDialect);
-        properties.put("hibernate.show_sql", hibernateShowSql);
-        properties.put("hibernate.hbm2ddl.auto", hibernateHbm2ddlAuto);
-        return properties;
-    }
+    // Manual sessionFactory bean removed
+    // Manual transactionManager bean removed
+    // Manual hibernateProperties method removed
 }

@@ -7,23 +7,22 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
 
-@SuppressWarnings("deprecation")
 @Configuration
 @EnableWebSecurity
-public class SecurityConfig extends WebSecurityConfigurerAdapter {
+public class SecurityConfig {
 
     @Value("${application.security.disabled:false}")
     private boolean securityDisabled;
@@ -31,27 +30,37 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     @Autowired
     private AuthRequestFilter authRequestFilter;
 
-    @Autowired
-    private UserDetailsService userDetailsService;
+    private UserDetailsService userDetailsService; // This remains for PasswordEncoder if needed by custom auth provider, but Spring Boot 3 typically infers it.
 
-    @Override
-    protected void configure(HttpSecurity http) throws Exception {
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         if (securityDisabled) {
-            http.authorizeRequests()
-                .anyRequest().permitAll()
-                .and().csrf().disable();
-		} else {
-			http.csrf().disable().authorizeRequests()
-					.antMatchers("/api/v1/auth/authenticate", "/api/v1/auth/register",
-							"/api/v1/auth/check-email-exists", "/api/v1/auth/check-username-exists", "/planmate/hello")
-					.permitAll() // Public endpoints
-					.anyRequest().authenticated()
-					.and().sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+            http
+                .authorizeHttpRequests(authz -> authz
+                    .anyRequest().permitAll()
+                )
+                .csrf(csrf -> csrf.disable());
+        } else {
+            http
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(authz -> authz
+                    .requestMatchers("/api/v1/auth/authenticate", "/api/v1/auth/register",
+                                     "/api/v1/auth/check-email-exists", "/api/v1/auth/check-username-exists",
+                                     "/planmate/hello",
+                                     // Swagger UI v3 paths
+                                     "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+                    .permitAll() // Public endpoints
+                    .anyRequest().authenticated()
+                )
+                .sessionManagement(session -> session
+                    .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                );
 
-			// Add the JWT filter before UsernamePasswordAuthenticationFilter
-			http.addFilterBefore(authRequestFilter, UsernamePasswordAuthenticationFilter.class);
-		}
-	}
+            // Add the JWT filter before UsernamePasswordAuthenticationFilter
+            http.addFilterBefore(authRequestFilter, UsernamePasswordAuthenticationFilter.class);
+        }
+        return http.build();
+    }
 
     @Bean
     public CorsFilter corsFilter() {
@@ -70,14 +79,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         return new BCryptPasswordEncoder();
     }
 
-    @Override
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        auth.userDetailsService(userDetailsService).passwordEncoder(passwordEncoder());
-    }
-
-    @Override
     @Bean
-    public AuthenticationManager authenticationManagerBean() throws Exception {
-        return super.authenticationManagerBean();
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+        return authenticationConfiguration.getAuthenticationManager();
     }
 }
