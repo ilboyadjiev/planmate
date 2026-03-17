@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
 import com.planmate.dto.Friendship;
+import com.planmate.dto.User;
 
 @Repository
 public class FriendshipDaoImpl implements FriendshipDao {
@@ -47,6 +48,20 @@ public class FriendshipDaoImpl implements FriendshipDao {
 		Session session = sessionFactory.getCurrentSession();
 		session.delete(friendship);
 		return friendship;
+	}
+
+	@Override
+	public boolean friendshipExists(User userA, User userB) {
+		Session session = sessionFactory.getCurrentSession();
+
+		String hql = "SELECT count(f) FROM Friendship f WHERE "
+				+ "(f.userA.id = :userAId AND f.userB.id = :userBId) OR "
+				+ "(f.userA.id = :userBId AND f.userB.id = :userAId)";
+
+		Long count = (Long) session.createQuery(hql).setParameter("userAId", userA.getId())
+				.setParameter("userBId", userB.getId()).uniqueResult();
+
+		return count != null && count > 0;
 	}
 
 }

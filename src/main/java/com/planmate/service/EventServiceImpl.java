@@ -31,6 +31,12 @@ public class EventServiceImpl implements EventService {
 	public List<Event> getAllEventsForUser(final String user) {
 		return eventDAO.getAllEventsForUser(user);
 	}
+	
+	@Transactional
+	@Override
+	public List<Event> getAllEventsForUsername(final String username) {
+		return eventDAO.getAllEventsForUsername(username);
+	}
 
 	@Transactional
 	@Override

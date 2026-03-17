@@ -12,6 +12,8 @@ import javax.persistence.JoinColumn;
 import javax.persistence.OneToOne;
 import javax.persistence.Table;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 @SuppressWarnings("serial")
 @Entity
 @Table(name = "appuser")
@@ -37,6 +39,7 @@ public class User implements Serializable {
 
 	@Column(name = "password")
 	//@ApiModelProperty(notes = "Password")
+	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String password;
 
 	@Column(name = "role")

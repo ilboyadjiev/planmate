@@ -9,6 +9,8 @@ public interface EventService {
 	List<Event> getAllEvents();
 
 	List<Event> getAllEventsForUser(final String user);
+	
+	List<Event> getAllEventsForUsername(final String username);
 
 	Event getEventById(final Long id);
 

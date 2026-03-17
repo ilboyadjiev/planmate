@@ -3,6 +3,7 @@ package com.planmate.dao;
 import java.util.List;
 
 import com.planmate.dto.Friendship;
+import com.planmate.dto.User;
 
 public interface FriendshipDao {
 
@@ -15,4 +16,6 @@ public interface FriendshipDao {
 	Friendship update(Friendship friendship);
 
 	Friendship delete(Friendship friendship);
+
+	boolean friendshipExists(User userA, User userB);
 }

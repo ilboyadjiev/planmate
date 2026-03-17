@@ -17,10 +17,12 @@ public interface UserService {
 	User createUser(User user);
 
 	User updateUser(Long id, User user);
-
+	
 	Boolean checkEmailAvailable(String emailToCheck);
 
 	Boolean checkUsernameAvailable(String usernameToCheck);
 
 	List<User> searchUsernames(String user, String searchText);
+
+	void changePassword(User currentUser, String newPassword);
 }

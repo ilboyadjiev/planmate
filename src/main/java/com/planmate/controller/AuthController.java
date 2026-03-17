@@ -1,5 +1,6 @@
 package com.planmate.controller;
 
+import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -16,13 +17,18 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.planmate.dto.User;
+import com.planmate.exception.BusinessLogicException;
 import com.planmate.service.UserService;
+import com.planmate.util.ChangePasswordRequest;
 import com.planmate.util.JwtUtil;
+
+import io.swagger.v3.oas.annotations.Operation;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -56,9 +62,15 @@ public class AuthController {
 		// email is used for auth
 		final UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
 		final String jwt = jwtUtil.generateToken(userDetails.getUsername());
+		logger.info("User " + userDetails.getUsername() + " authenticated successfully, JWT generated");
+		
+		// get some user info to return with the token
+		User userInfo = userService.getUserByEmail(user.getEmail());
 
 		Map<String, String> response = new HashMap<>();
 		response.put("jwt", jwt);
+		response.put("username", userInfo.getUsername());
+		response.put("firstName", userInfo.getFirstName());
 		return ResponseEntity.ok(response);
 	}
 
@@ -95,5 +107,23 @@ public class AuthController {
 		Map<String, Boolean> response = new HashMap<>();
 		response.put("available", usernameAvailable);
 		return new ResponseEntity<>(response, usernameAvailable ? HttpStatus.OK : HttpStatus.CONFLICT);
+	}
+	
+	@PutMapping("/password")
+	@Operation(summary = "Securely change user password")
+	public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest request, Principal principal) {
+		
+		User currentUser = userService.getUserByEmail(principal.getName());
+		if (currentUser == null) {
+			throw new BusinessLogicException("User not found.", null, HttpStatus.NOT_FOUND);
+		}
+		if (!currentUser.getPassword().equals(request.getCurrentPassword())) {
+			throw new BusinessLogicException("Current password is incorrect.", null, HttpStatus.UNAUTHORIZED);
+		}
+		
+		currentUser.setPassword(passwordEncoder.encode(request.getNewPassword()));
+		userService.changePassword(currentUser, request.getNewPassword());
+
+		return new ResponseEntity<>("Password updated successfully.", HttpStatus.OK);
 	}
 }

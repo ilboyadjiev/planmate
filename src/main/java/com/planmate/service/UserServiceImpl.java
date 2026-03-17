@@ -42,7 +42,7 @@ public class UserServiceImpl implements UserService {
 			// not found
 			return null;
 		}
-		existing.setFirstName(user.getFirstName());
+		user.setPassword(existing.getPassword()); // password is not updated here
 		return userDAO.updateUser(existing);
 	}
 
@@ -81,5 +81,12 @@ public class UserServiceImpl implements UserService {
 	public List<User> searchUsernames(String user, String searchText) {
 		return userDAO.searchUsernames(user, searchText);
 	}
+
+	@Override
+	public void changePassword(User currentUser, String newPassword) {
+		currentUser.setPassword(newPassword);
+		userDAO.updateUser(currentUser);
+	}
+
 
 }

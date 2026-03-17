@@ -27,8 +27,16 @@ public class EventDaoImpl implements EventDAO {
 	@Override
 	public List<Event> getAllEventsForUser(final String user) {
 		Session session = sessionFactory.getCurrentSession();
-		String hql = "FROM Event e WHERE e.user.email = :user ";
+		String hql = "FROM Event e WHERE e.user.email = :user AND e.deleted = false ";
 		return session.createQuery(hql).setParameter("user", user).list();
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public List<Event> getAllEventsForUsername(final String username) {
+		Session session = sessionFactory.getCurrentSession();
+		String hql = "SELECT e FROM Event e JOIN e.user u WHERE u.username = :user AND e.deleted = false ";
+		return session.createQuery(hql).setParameter("user", username).list();
 	}
 
 	@Override

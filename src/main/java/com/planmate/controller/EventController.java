@@ -45,6 +45,11 @@ public class EventController {
 		return new ResponseEntity<>(eventService.getAllEventsForUser(user), HttpStatus.OK);
 	}
 	
+	@GetMapping("/username/{user}")
+	public ResponseEntity<List<Event>> getEventForUsername(@PathVariable String user) {
+		return new ResponseEntity<>(eventService.getAllEventsForUsername(user), HttpStatus.OK);
+	}
+	
 	@PostMapping("")
 	public ResponseEntity<Event> createEvent(@RequestBody Event event, @RequestHeader("Authorization") String authorizationHeader) {
         // Retrieve the currently logged in user

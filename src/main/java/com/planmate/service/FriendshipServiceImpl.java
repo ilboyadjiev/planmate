@@ -29,14 +29,23 @@ public class FriendshipServiceImpl implements FriendshipService {
 
 	@Transactional
 	@Override
-	public Friendship createFriendship(Long userAId, Long userBId) {
-		User userA = userService.getUserById(userAId);
+	public Friendship createFriendship(String requesterEmail, Long userBId) {
+		User userA = userService.getUserByEmail(requesterEmail);
 		User userB = userService.getUserById(userBId);
 
 		if (userA == null || userB == null) {
-			logger.info("Can't create friendship: User(s) are not found: " + userAId + " or " + userBId);
-			return null;
+			throw new IllegalArgumentException("One or both users do not exist.");
 		}
+
+		if (userA.getId().equals(userB.getId())) {
+			throw new IllegalArgumentException("You cannot send a friend request to yourself.");
+		}
+		
+
+		if (friendshipDao.friendshipExists(userA, userB)) {
+			throw new IllegalArgumentException("A friend request already exists between these users.");
+		}
+		
 
 		Friendship friendship = new Friendship();
 		friendship.setUserA(userA);
@@ -44,43 +53,42 @@ public class FriendshipServiceImpl implements FriendshipService {
 		friendship.setCreationDate(Timestamp.from(Instant.now()));
 		friendship.setRequestDate(Timestamp.from(Instant.now()));
 		friendship.setStatus(ConstantsUtil.FRIENDSHIP_STATUS_PENDING);
+		
 		return friendshipDao.create(friendship);
 	}
 
 	@Transactional
 	@Override
-	public Friendship acceptFriendshipRequest(Long friendshipId, Long acceptingUserId) {
-		if (acceptingUserId == null || friendshipId == null) {
-			logger.info("Null parameters");
-			return null;
+	public Friendship acceptFriendshipRequest(Long friendshipId, String acceptingUserEmail) {
+		User acceptingUser = userService.getUserByEmail(acceptingUserEmail);
+		if (acceptingUser == null) {
+			throw new IllegalArgumentException("Accepting user not found.");
 		}
 
 		Friendship friendship = friendshipDao.getById(friendshipId);
 		if (friendship == null) {
-			logger.info("Could not find a friend request with id " + friendshipId);
-			return null;
+			throw new IllegalArgumentException("Could not find a friend request with id " + friendshipId);
 		}
 
 		if (ConstantsUtil.FRIENDSHIP_STATUS_ACCEPTED.equalsIgnoreCase(friendship.getStatus())) {
-			logger.info("Friendship " + friendshipId + " is already accepted");
-			return null;
+			throw new IllegalArgumentException("Friendship is already accepted.");
 		}
 
-		if (!acceptingUserId.equals(friendship.getUserB().getId())) {
-			logger.info("This user cannot accept this friend request.");
-			return null;
+		// Security check: Only the targeted user can accept it
+		if (!acceptingUser.getId().equals(friendship.getUserB().getId())) {
+			throw new IllegalArgumentException("You are not authorized to accept this friend request.");
 		}
 
 		if (ConstantsUtil.FRIENDSHIP_STATUS_PENDING.equalsIgnoreCase(friendship.getStatus())) {
 			friendship.setAcceptDate(Timestamp.from(Instant.now()));
 			friendship.setStatus(ConstantsUtil.FRIENDSHIP_STATUS_ACCEPTED);
 			friendshipDao.update(friendship);
+			
 			logger.info("Friend request accepted: " + friendshipId);
 			return friendship;
 		}
 
-		logger.info("Could not accept friend request. Check parameters.");
-		return null;
+		throw new IllegalArgumentException("Invalid friendship status.");
 	}
 
 	@Transactional
