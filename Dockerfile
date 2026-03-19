@@ -15,25 +15,15 @@ COPY src ./src
 RUN mvn clean package -DskipTests
 
 # Stage 2: Run the application
-FROM tomcat:9.0.65-jdk11-openjdk-slim
+FROM openjdk:11-jre-slim
 
-# Set the working directory inside the container
-WORKDIR /usr/local/tomcat
+WORKDIR /app
 
-# Remove the default webapps to keep the image clean
-RUN rm -rf webapps/*
-
-# Copy the WAR file from the build stage
-COPY --from=build /app/target/planmate-0.0.1-SNAPSHOT.war webapps/ROOT.war
-
-# Ensure proper permissions
-RUN chmod +x /usr/local/tomcat/bin/catalina.sh
-
-# Ensure environment variables for Spring Boot
-ENV JAVA_OPTS="-Dspring.profiles.active=prod"
+# Copy the WAR file from the build stage, but rename it to app.war
+COPY --from=build /app/target/planmate-0.0.1-SNAPSHOT.war app.war
 
 # Expose port 8080
 EXPOSE 8080
 
-# Start Tomcat
-CMD ["catalina.sh", "run"]
+# Start the application
+CMD ["java", "-Dspring.profiles.active=prod", "-jar", "app.war"]
