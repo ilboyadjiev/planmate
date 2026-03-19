@@ -43,7 +43,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 		} else {
 			http.csrf().disable().authorizeRequests()
 					.antMatchers("/api/v1/auth/authenticate", "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh",
-							"/api/v1/auth/check-email-exists", "/api/v1/auth/check-username-exists", "/planmate/hello")
+							"/api/v1/auth/check-email-exists", "/api/v1/auth/check-username-exists", "/planmate/hello", "/api/health")
 					.permitAll() // Public endpoints
 					.anyRequest().authenticated()
 					.and().sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
