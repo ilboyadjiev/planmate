@@ -70,14 +70,9 @@ public class AuthRequestFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
 		logger.info("Checking if request should be filtered: " + request.getRequestURI());
         String path = request.getRequestURI();
-        return path.equals("/api/health")
-				|| path.equals("/api/v1/auth/authenticate") 
-				|| path.equals("/api/v1/auth/register") 
-				|| path.equals("/api/v1/auth/login")
-				|| path.equals("/api/v1/auth/refresh") 
-				|| path.equals("/api/v1/auth/check-email-exists") 
-				|| path.equals("/api/v1/auth/check-username-exists")
-				|| path.equals("/planmate/hello")
-				|| path.equals("/error");
+        return path.contains("/api/health") 
+                || path.contains("/api/v1/auth/") 
+                || path.contains("/hello")
+                || path.contains("/error");
     }
 }
