@@ -77,6 +77,7 @@ public class AuthRequestFilter extends OncePerRequestFilter {
 				|| path.equals("/api/v1/auth/refresh") 
 				|| path.equals("/api/v1/auth/check-email-exists") 
 				|| path.equals("/api/v1/auth/check-username-exists")
-				|| path.equals("/planmate/hello");
+				|| path.equals("/planmate/hello")
+				|| path.equals("/error");
     }
 }
