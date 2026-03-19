@@ -26,8 +26,8 @@ jobs:
           context: .
           push: true
           tags: iliandocker/planmate-docker-repo:planmate-backend
-          cache-from: type=registry,ref=iliandocker/planmate-docker-repo:buildcache
-          cache-to: type=registry,ref=iliandocker/planmate-docker-repo:buildcache,mode=max
+          #cache-from: type=registry,ref=iliandocker/planmate-docker-repo:buildcache
+          #cache-to: type=registry,ref=iliandocker/planmate-docker-repo:buildcache,mode=max
 
       - name: Deploy to GCP VM
         uses: appleboy/ssh-action@v1.0.3
@@ -37,9 +37,11 @@ jobs:
           key: ${{ secrets.GCP_SSH_KEY }}
           script: |
             cd ~/planmate
+            sudo docker-compose stop backend
+            sudo docker-compose rm -f backend
+            sudo docker image rm iliandocker/planmate-docker-repo:planmate-backend || true
             sudo docker-compose pull backend
             sudo docker-compose up -d backend
-            sudo docker-compose up -d --force-recreate backend
             sudo docker image prune -f
 
       - name: Verify Health Check
