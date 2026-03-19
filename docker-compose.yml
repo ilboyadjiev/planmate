@@ -3,6 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: 'iliandocker/planmate-docker-repo:planmate-postgres'
+    restart: always
     environment:
       - 'POSTGRES_DB=${DB_NAME}'
       - 'POSTGRES_USER=${DB_USER}'
@@ -16,6 +17,8 @@ services:
 
   backend:
     image: 'iliandocker/planmate-docker-repo:planmate-backend'
+    restart: always
+    build: .
     container_name: planmate-backend
     environment:
       - 'SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${DB_NAME}'
