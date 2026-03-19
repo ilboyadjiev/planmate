@@ -8,54 +8,36 @@ services:
       - 'POSTGRES_DB=${DB_NAME}'
       - 'POSTGRES_USER=${DB_USER}'
       - 'POSTGRES_PASSWORD=${DB_PASSWORD}'
-    ports:
-      - '5432:5432'
     networks:
       - planmate-network
     volumes:
-      - planmate-volume:/data/db
+      - planmate-volume:/var/lib/postgresql/data
 
   backend:
     image: 'iliandocker/planmate-docker-repo:planmate-backend'
-    restart: always
-    #build: .
     container_name: planmate-backend
+    restart: always
     environment:
       - 'SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${DB_NAME}'
       - 'SPRING_DATASOURCE_USERNAME=${DB_USER}'
       - 'SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}'
-      - 'SPRING_PROFILES_ACTIVE=docker'
+      - 'SPRING_PROFILES_ACTIVE=docker' 
       - 'JWT_SECRET=${JWT_SECRET}'
     networks:
       - planmate-network
     depends_on:
       - postgres
-    ports:
-      - "8080:8080"
 
   frontend:
     image: 'iliandocker/planmate-docker-repo:planmate-frontend'
     container_name: planmate-frontend
-    environment:
-      - REACT_APP_BACKEND_BASE_URL=
-    networks:
-      - planmate-network
-
-
-  nginx:
-    image: nginx:alpine
-    container_name: planmate-nginx
     restart: always
-    volumes:
-      #- ../planmate-frontend/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf
-    ports:
-      - "80:80"
-    depends_on:
-      - frontend
-      - backend
     networks:
       - planmate-network
+    depends_on:
+      - backend
+    ports:
+      - "80:80" 
 
 volumes:
   planmate-volume:
