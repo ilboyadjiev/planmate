@@ -39,4 +39,20 @@ jobs:
             cd ~/planmate
             sudo docker-compose pull backend
             sudo docker-compose up -d backend
+            sudo docker-compose up -d --force-recreate backend
             sudo docker image prune -f
+
+      - name: Verify Health Check
+        run: |
+            echo "Waiting for Spring Boot to boot up..."
+            for i in {1..12}; do
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.GCP_VM_IP }}:8080/api/health || echo "000")
+              if [ "$HTTP_STATUS" == "200" ]; then
+                echo "Health check passed! Backend is live."
+                exit 0
+              fi
+              echo "App not ready yet (HTTP Status: $HTTP_STATUS). Retrying in 5 seconds... ($i/12)"
+              sleep 5
+            done
+            echo "Health check failed or timed out after 60 seconds."
+            exit 1 # This tells GitHub Actions to mark the workflow as FAILED
