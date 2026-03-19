@@ -1,5 +1,7 @@
 package com.planmate.dto;
 
+import java.util.Objects;
+
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
@@ -70,6 +72,31 @@ public class Contact {
 
 	public void setCountry(String country) {
 		this.country = country;
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(country, id, mobile, street, zipcode);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		Contact other = (Contact) obj;
+		return Objects.equals(country, other.country) && Objects.equals(id, other.id)
+				&& Objects.equals(mobile, other.mobile) && Objects.equals(street, other.street)
+				&& Objects.equals(zipcode, other.zipcode);
+	}
+
+	@Override
+	public String toString() {
+		return "Contact [id=" + id + ", mobile=" + mobile + ", street=" + street + ", zipcode=" + zipcode + ", country="
+				+ country + "]";
 	}
 
 }

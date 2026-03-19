@@ -1,6 +1,9 @@
 package com.planmate.service;
 
+import java.sql.Timestamp;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import javax.transaction.Transactional;
 
@@ -31,7 +34,7 @@ public class EventServiceImpl implements EventService {
 	public List<Event> getAllEventsForUser(final String user) {
 		return eventDAO.getAllEventsForUser(user);
 	}
-	
+
 	@Transactional
 	@Override
 	public List<Event> getAllEventsForUsername(final String username) {
@@ -51,20 +54,61 @@ public class EventServiceImpl implements EventService {
 		if (creator != null) {
 			event.setUser(creator);
 		}
+		
+		if (event.getParticipantIds() != null && !event.getParticipantIds().isEmpty()) {
+			Set<User> invitedFriends = new HashSet<>();
+			for (Long friendId : event.getParticipantIds()) {
+				User friend = userService.getUserById(friendId); 
+				if (friend != null) {
+					invitedFriends.add(friend);
+				}
+			}
+			event.setParticipants(invitedFriends);
+		}
+		
 		return eventDAO.createNewEvent(event, createdBy);
 	}
 
 	@Transactional
 	@Override
-	public Event updateEvent(Long id, Event event) {
-		Event updatedEvent = eventDAO.updateEvent(event);
-		return updatedEvent;
+	public Event updateEvent(Long id, Event existingEvent, Event incomingEvent) {
+		
+		if (existingEvent != null) {
+			// Only update the fields that are actually editable by the user. We don't want to allow changing the owner of the event, for example.
+			existingEvent.setTitle(incomingEvent.getTitle());
+			existingEvent.setDescription(incomingEvent.getDescription());
+			existingEvent.setStartTime(incomingEvent.getStartTime());
+			existingEvent.setEndTime(incomingEvent.getEndTime());
+			
+			if (incomingEvent.getParticipantIds() != null) {
+				Set<User> updatedFriends = new HashSet<>();
+				
+				for (Long friendId : incomingEvent.getParticipantIds()) {
+					User friend = userService.getUserById(friendId); 
+					if (friend != null) {
+						updatedFriends.add(friend);
+					}
+				}
+				existingEvent.setParticipants(updatedFriends);
+			}
+			
+			return eventDAO.updateEvent(existingEvent);
+		}
+		
+		return null;
 	}
 
 	@Transactional
 	@Override
 	public boolean deleteEvent(Event event) {
 		return eventDAO.deleteEvent(event);
+	}
+
+	@Transactional
+	@Override
+	public List<Event> findByUserEmailAndStartTimeBetween(String currentUserEmail, Timestamp startTime,
+			Timestamp endTime) {
+		return eventDAO.getEventsInRange(currentUserEmail, startTime, endTime);
 	}
 
 }

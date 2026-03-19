@@ -18,6 +18,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.planmate.util.JwtUtil;
 
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.MalformedJwtException;
+
 @Component
 public class AuthRequestFilter extends OncePerRequestFilter {
 
@@ -38,7 +41,15 @@ public class AuthRequestFilter extends OncePerRequestFilter {
 
 		if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
 			jwt = authorizationHeader.substring(7);
-			username = jwtUtil.extractUsername(jwt);
+			try {
+				username = jwtUtil.extractUsername(jwt);
+			} catch (IllegalArgumentException e) {
+				logger.error("Unable to get JWT Token");
+			} catch (ExpiredJwtException e) {
+				logger.warn("JWT Token has expired"); 
+			} catch (MalformedJwtException e) {
+				logger.warn("JWT Token is malformed or null");
+			}
 		}
 
 		if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {

@@ -1,5 +1,6 @@
 package com.planmate.dao;
 
+import java.sql.Timestamp;
 import java.util.List;
 
 import org.hibernate.Session;
@@ -35,7 +36,11 @@ public class EventDaoImpl implements EventDAO {
 	@Override
 	public List<Event> getAllEventsForUsername(final String username) {
 		Session session = sessionFactory.getCurrentSession();
-		String hql = "SELECT e FROM Event e JOIN e.user u WHERE u.username = :user AND e.deleted = false ";
+		String hql = "SELECT DISTINCT e FROM Event e "
+				+ "LEFT JOIN e.participants p " 
+				+ "JOIN e.user u "
+				+ "WHERE (u.username = :user OR p.username = :user) " 
+				+ "AND e.deleted = false ";
 		return session.createQuery(hql).setParameter("user", username).list();
 	}
 
@@ -48,7 +53,6 @@ public class EventDaoImpl implements EventDAO {
 
 	@Override
 	public Event createNewEvent(Event event, String createdBy) {
-		//EntityUtil.fillAbstractEntityAttributes(event);
 		return updateEvent(event);
 	}
 
@@ -69,4 +73,18 @@ public class EventDaoImpl implements EventDAO {
 		return false;
 	}
 
+	@SuppressWarnings("unchecked")
+	@Override
+	public List<Event> getEventsInRange(String userEmail, Timestamp start, Timestamp end) {
+		Session session = sessionFactory.getCurrentSession();
+		String hql = "SELECT DISTINCT e FROM Event e LEFT JOIN e.participants p "
+				+ "WHERE (e.user.email = :email OR p.email = :email) "
+				+ "AND e.startTime BETWEEN :start AND :end AND e.deleted = false";
+		
+		return session.createQuery(hql)
+				.setParameter("email", userEmail)
+				.setParameter("start", start)
+				.setParameter("end", end)
+				.list();
+	}
 }

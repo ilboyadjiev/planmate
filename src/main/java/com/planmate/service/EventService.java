@@ -1,5 +1,6 @@
 package com.planmate.service;
 
+import java.sql.Timestamp;
 import java.util.List;
 
 import com.planmate.dto.Event;
@@ -16,7 +17,9 @@ public interface EventService {
 
 	Event createNewEvent(Event event, String createdBy);
 
-	Event updateEvent(Long id, Event event);
+	Event updateEvent(Long id, Event event, Event incomingEvent);
 
 	boolean deleteEvent(Event event);
+
+	List<Event> findByUserEmailAndStartTimeBetween(String currentUserEmail, Timestamp startTime, Timestamp endTime);
 }

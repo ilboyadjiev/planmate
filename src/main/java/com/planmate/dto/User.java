@@ -1,6 +1,7 @@
 package com.planmate.dto;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 import javax.persistence.CascadeType;
 import javax.persistence.Column;
@@ -121,6 +122,33 @@ public class User implements Serializable {
 
 	public void setUsername(String username) {
 		this.username = username;
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(contactData, email, firstName, id, lastName, password, role, username);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		User other = (User) obj;
+		return Objects.equals(contactData, other.contactData) && Objects.equals(email, other.email)
+				&& Objects.equals(firstName, other.firstName) && Objects.equals(id, other.id)
+				&& Objects.equals(lastName, other.lastName) && Objects.equals(password, other.password)
+				&& Objects.equals(role, other.role) && Objects.equals(username, other.username);
+	}
+
+	@Override
+	public String toString() {
+		return "User [id=" + id + ", firstName=" + firstName + ", lastName=" + lastName + ", email=" + email
+				+ ", password=" + password + ", role=" + role + ", username=" + username + ", contactData="
+				+ contactData + "]";
 	}
 
 }

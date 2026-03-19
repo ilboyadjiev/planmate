@@ -87,7 +87,11 @@ public class UserController {
 
 	@GetMapping("/{id}/friends")
 	public ResponseEntity<List<Friendship>> getFriendsListByUserId(@PathVariable Long id) {
-		List<Friendship> friends = friendshipService.getFriendshipList(id);
+		User user = userService.getUserById(id);
+		if (user == null) {
+			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+		}
+		List<Friendship> friends = friendshipService.getFriendshipList(user.getEmail());
 		return new ResponseEntity<>(friends, HttpStatus.OK);
 	}
 

@@ -1,5 +1,6 @@
 package com.planmate.dao;
 
+import java.sql.Timestamp;
 import java.util.List;
 
 import com.planmate.dto.Event;
@@ -19,5 +20,7 @@ public interface EventDAO {
 	Event updateEvent(Event event);
 
 	boolean deleteEvent(Event event);
+	
+	List<Event> getEventsInRange(String userEmail, Timestamp start, Timestamp end);
 
 }

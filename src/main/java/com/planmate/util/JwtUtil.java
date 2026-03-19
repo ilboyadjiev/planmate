@@ -1,9 +1,12 @@
 package com.planmate.util;
 
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Function;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
@@ -12,6 +15,10 @@ import io.jsonwebtoken.SignatureAlgorithm;
 
 @Component
 public class JwtUtil {
+	
+	private static final long ACCESS_TOKEN_VALIDITY = 1000L * 60 * 15; // 15 minutes
+	
+	private static final long REFRESH_TOKEN_VALIDITY = 1000L * 60 * 60 * 24 * 7; // 7 days
 
 	@Value("${jwt.secret}")
 	private String secret;
@@ -47,4 +54,25 @@ public class JwtUtil {
 		final String extractedUsername = extractUsername(token);
 		return (extractedUsername.equals(username) && !isTokenExpired(token));
 	}
+
+    public String generateAccessToken(UserDetails userDetails) {
+        Map<String, Object> claims = new HashMap<>();
+        return createToken(claims, userDetails.getUsername(), ACCESS_TOKEN_VALIDITY);
+    }
+
+    public String generateRefreshToken(UserDetails userDetails) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("type", "refresh"); 
+        return createToken(claims, userDetails.getUsername(), REFRESH_TOKEN_VALIDITY);
+    }
+
+    private String createToken(Map<String, Object> claims, String subject, long validity) {
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject(subject)
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + validity))
+                .signWith(SignatureAlgorithm.HS256, secret)
+                .compact();
+    }
 }

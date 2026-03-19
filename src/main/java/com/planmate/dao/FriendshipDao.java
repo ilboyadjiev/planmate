@@ -11,7 +11,7 @@ public interface FriendshipDao {
 
 	Friendship getById(Long id);
 
-	List<Friendship> getFriendshipsListByUserId(Long id);
+	List<Friendship> getFriendshipsListByUserId(String userEmail);
 
 	Friendship update(Friendship friendship);
 

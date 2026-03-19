@@ -30,10 +30,10 @@ public class FriendshipDaoImpl implements FriendshipDao {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public List<Friendship> getFriendshipsListByUserId(Long id) {
+	public List<Friendship> getFriendshipsListByUserId(String userEmail) {
 		Session session = sessionFactory.getCurrentSession();
-		String hql = "FROM Friendship f WHERE f.userA.id = :id OR f.userB.id = :id";
-		return session.createQuery(hql).setParameter("id", id).list();
+		String hql = "FROM Friendship f WHERE f.userA.email = :email OR f.userB.email = :email ";
+		return session.createQuery(hql).setParameter("email", userEmail).list();
 	}
 
 	@Override

@@ -1,6 +1,7 @@
 package com.planmate.controller;
 
 import java.security.Principal;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -36,4 +37,18 @@ public class FriendshipController {
 			return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
 		}
 	}
+
+	@GetMapping("/list")
+	public ResponseEntity<?> getUserFriendships(Principal principal) {
+		try {
+			String currentUserEmail = principal.getName();
+			
+			List<Friendship> friendships = friendshipService.getFriendshipList(currentUserEmail);
+			
+			return new ResponseEntity<>(friendships, HttpStatus.OK);
+		} catch (Exception e) {
+			return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+		}
+	}
+	
 }

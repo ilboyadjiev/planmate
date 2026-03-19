@@ -12,5 +12,5 @@ public interface FriendshipService {
 
 	Friendship getFriendshipById(Long id);
 
-	List<Friendship> getFriendshipList(Long userId);
+	List<Friendship> getFriendshipList(String userEmail);
 }
