@@ -30,10 +30,7 @@ COPY --from=build /app/target/planmate-0.0.1-SNAPSHOT.war webapps/ROOT.war
 RUN chmod +x /usr/local/tomcat/bin/catalina.sh
 
 # Ensure environment variables for Spring Boot
-ENV JAVA_OPTS="-Dspring.config.location=file:/usr/local/tomcat/conf/application.properties"
-
-# Copy Spring Boot config file if using it
-COPY src/main/resources/application.properties /usr/local/tomcat/conf/
+ENV JAVA_OPTS="-Dspring.profiles.active=prod"
 
 # Expose port 8080
 EXPOSE 8080
