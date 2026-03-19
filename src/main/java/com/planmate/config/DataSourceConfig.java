@@ -15,59 +15,59 @@ import java.util.Properties;
 @EnableTransactionManagement
 public class DataSourceConfig {
 
-    @Value("${spring.datasource.driver-class-name}")
-    private String driverClassName;
+	@Value("${spring.datasource.driver-class-name}")
+	private String driverClassName;
 
-    @Value("${spring.datasource.url}")
-    private String url;
+	@Value("${spring.datasource.url}")
+	private String url;
 
-    @Value("${spring.datasource.username}")
-    private String username;
+	@Value("${spring.datasource.username}")
+	private String username;
 
-    @Value("${spring.datasource.password}")
-    private String password;
+	@Value("${spring.datasource.password}")
+	private String password;
 
-    @Value("${spring.jpa.properties.hibernate.dialect}")
-    private String hibernateDialect;
+	@Value("${spring.jpa.properties.hibernate.dialect}")
+	private String hibernateDialect;
 
-    @Value("${spring.jpa.show-sql}")
-    private String hibernateShowSql;
+	@Value("${spring.jpa.show-sql}")
+	private String hibernateShowSql;
 
-    @Value("${hibernate.hbm2ddl.auto}")
-    private String hibernateHbm2ddlAuto;
+	@Value("${spring.jpa.hibernate.ddl-auto}")
+	private String hibernateHbm2ddlAuto;
 
-    @Bean
-    public LocalSessionFactoryBean sessionFactory() {
-        LocalSessionFactoryBean sessionFactory = new LocalSessionFactoryBean();
-        sessionFactory.setDataSource(dataSource());
-        sessionFactory.setPackagesToScan("com.planmate.dto");
-        sessionFactory.setHibernateProperties(hibernateProperties());
-        return sessionFactory;
-    }
+	@Bean
+	public LocalSessionFactoryBean sessionFactory() {
+		LocalSessionFactoryBean sessionFactory = new LocalSessionFactoryBean();
+		sessionFactory.setDataSource(dataSource());
+		sessionFactory.setPackagesToScan("com.planmate.dto");
+		sessionFactory.setHibernateProperties(hibernateProperties());
+		return sessionFactory;
+	}
 
-    @Bean
-    public DataSource dataSource() {
-        DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setDriverClassName(driverClassName);
-        dataSource.setUrl(url); 
-        System.out.println("Using data source url: " + dataSource.getUrl());
-        dataSource.setUsername(username);
-        dataSource.setPassword(password);
-        return dataSource;
-    }
+	@Bean
+	public DataSource dataSource() {
+		DriverManagerDataSource dataSource = new DriverManagerDataSource();
+		dataSource.setDriverClassName(driverClassName);
+		dataSource.setUrl(url);
+		System.out.println("Using data source url: " + dataSource.getUrl());
+		dataSource.setUsername(username);
+		dataSource.setPassword(password);
+		return dataSource;
+	}
 
-    @Bean
-    public HibernateTransactionManager transactionManager() {
-        HibernateTransactionManager txManager = new HibernateTransactionManager();
-        txManager.setSessionFactory(sessionFactory().getObject());
-        return txManager;
-    }
+	@Bean
+	public HibernateTransactionManager transactionManager() {
+		HibernateTransactionManager txManager = new HibernateTransactionManager();
+		txManager.setSessionFactory(sessionFactory().getObject());
+		return txManager;
+	}
 
-    private Properties hibernateProperties() {
-        Properties properties = new Properties();
-        properties.put("hibernate.dialect", hibernateDialect);
-        properties.put("hibernate.show_sql", hibernateShowSql);
-        properties.put("hibernate.hbm2ddl.auto", hibernateHbm2ddlAuto);
-        return properties;
-    }
+	private Properties hibernateProperties() {
+		Properties properties = new Properties();
+		properties.put("hibernate.dialect", hibernateDialect);
+		properties.put("hibernate.show_sql", hibernateShowSql);
+		properties.put("hibernate.hbm2ddl.auto", hibernateHbm2ddlAuto);
+		return properties;
+	}
 }
