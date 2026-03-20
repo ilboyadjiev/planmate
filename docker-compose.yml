@@ -32,12 +32,15 @@ services:
     image: 'iliandocker/planmate-docker-repo:planmate-frontend'
     container_name: planmate-frontend
     restart: always
+    ports:
+      - "80:80" 
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     networks:
       - planmate-network
     depends_on:
       - backend
-    ports:
-      - "80:80" 
 
 volumes:
   planmate-volume:
