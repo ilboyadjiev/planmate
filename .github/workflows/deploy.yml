@@ -23,38 +23,34 @@ jobs:
       - name: Build and push Backend Image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          push: true
-          tags: iliandocker/planmate-docker-repo:planmate-backend
-          #cache-from: type=registry,ref=iliandocker/planmate-docker-repo:buildcache
-          #cache-to: type=registry,ref=iliandocker/planmate-docker-repo:buildcache,mode=max
+            context: .
+            push: true
+            platforms: linux/amd64 
+            tags: iliandocker/planmate-docker-repo:planmate-backend
 
       - name: Deploy to GCP VM
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.GCP_VM_IP }}
-          username: ${{ secrets.GCP_SSH_USERNAME }}
-          key: ${{ secrets.GCP_SSH_KEY }}
-          script: |
-            cd ~/planmate
-            sudo docker-compose stop backend
-            sudo docker-compose rm -f backend
-            sudo docker image rm iliandocker/planmate-docker-repo:planmate-backend || true
-            sudo docker-compose pull backend
-            sudo docker-compose up -d backend
-            sudo docker image prune -f
+            host: ${{ secrets.GCP_VM_IP }}
+            username: ${{ secrets.GCP_SSH_USERNAME }}
+            key: ${{ secrets.GCP_SSH_KEY }}
+            script: |
+              cd ~/planmate
+              sudo docker-compose pull backend
+              sudo docker-compose up -d --remove-orphans backend
+              sudo docker image prune -f
 
       - name: Verify Health Check
         run: |
-            echo "Waiting for Spring Boot to boot up..."
-            for i in {1..12}; do
-              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.GCP_VM_IP }}:8080/api/health || echo "000")
-              if [ "$HTTP_STATUS" == "200" ]; then
-                echo "Health check passed! Backend is live."
-                exit 0
-              fi
-              echo "App not ready yet (HTTP Status: $HTTP_STATUS). Retrying in 5 seconds... ($i/12)"
-              sleep 5
-            done
-            echo "Health check failed or timed out after 60 seconds."
-            exit 1 # This tells GitHub Actions to mark the workflow as FAILED
+          echo "Waiting for Spring Boot to respond via HTTPS..."
+          for i in {1..15}; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://planmate.org/api/health || echo "000")
+            if [ "$HTTP_STATUS" == "200" ]; then
+              echo "Health check passed! Nginx + Backend are synced."
+              exit 0
+            fi
+            echo "App not ready yet (Status: $HTTP_STATUS). Retrying... ($i/15)"
+            sleep 10
+          done
+          echo "Health check failed."
+          exit 1
