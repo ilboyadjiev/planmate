@@ -13,4 +13,6 @@ public interface FriendshipService {
 	Friendship getFriendshipById(Long id);
 
 	List<Friendship> getFriendshipList(String userEmail);
+
+	Object deleteFriendship(Friendship friendship);
 }

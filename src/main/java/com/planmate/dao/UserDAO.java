@@ -23,4 +23,6 @@ public interface UserDAO {
 	boolean isUsernameDuplicate(String username);
 
 	List<User> searchUsernames(String user, String searchText);
+
+	void deleteUserById(Long id);
 }

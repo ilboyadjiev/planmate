@@ -94,12 +94,18 @@ public class FriendshipServiceImpl implements FriendshipService {
 	@Transactional
 	@Override
 	public List<Friendship> getFriendshipList(String userEmail) {
-		return friendshipDao.getFriendshipsListByUserId(userEmail);
+		return friendshipDao.getFriendshipsListByUserEmail(userEmail);
 	}
 
 	@Transactional
 	@Override
 	public Friendship getFriendshipById(Long id) {
 		return friendshipDao.getById(id);
+	}
+
+	@Transactional
+	@Override
+	public Object deleteFriendship(Friendship friendship) {
+		return friendshipDao.delete(friendship);
 	}
 }

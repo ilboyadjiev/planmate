@@ -1,7 +1,11 @@
 package com.planmate.dto;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import javax.persistence.CascadeType;
 import javax.persistence.Column;
@@ -10,9 +14,12 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
+import javax.persistence.ManyToMany;
+import javax.persistence.OneToMany;
 import javax.persistence.OneToOne;
 import javax.persistence.Table;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 @SuppressWarnings("serial")
@@ -23,38 +30,46 @@ public class User implements Serializable {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	//@ApiModelProperty(notes = "The unique ID of the user")
+	// @ApiModelProperty(notes = "The unique ID of the user")
 	private Long id;
 
 	@Column(name = "firstname")
-	//@ApiModelProperty(notes = "The user's first name")
+	// @ApiModelProperty(notes = "The user's first name")
 	private String firstName;
 
 	@Column(name = "lastname")
-	//@ApiModelProperty(notes = "The user's last name")
+	// @ApiModelProperty(notes = "The user's last name")
 	private String lastName;
 
 	@Column(name = "email", unique = true)
-	//@ApiModelProperty(notes = "The email of the contact")
+	// @ApiModelProperty(notes = "The email of the contact")
 	private String email;
 
 	@Column(name = "password")
-	//@ApiModelProperty(notes = "Password")
+	// @ApiModelProperty(notes = "Password")
 	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String password;
 
 	@Column(name = "role")
-	//@ApiModelProperty(notes = "The role of the user")
+	// @ApiModelProperty(notes = "The role of the user")
 	private String role;
 
 	@Column(name = "username", unique = true)
-	//@ApiModelProperty(notes = "A custom display name")
+	// @ApiModelProperty(notes = "A custom display name")
 	private String username;
 
 	@OneToOne(cascade = CascadeType.ALL)
-    @JoinColumn(name = "contact_id", referencedColumnName = "id")
-	//@ApiModelProperty(notes = "The user's contact information")
-    private Contact contactData;
+	@JoinColumn(name = "contact_id", referencedColumnName = "id")
+	// @ApiModelProperty(notes = "The user's contact information")
+	private Contact contactData;
+
+	@JsonIgnore
+	@OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+	private List<Event> createdEvents = new ArrayList<>();
+
+	@JsonIgnore
+	@ManyToMany(mappedBy = "participants")
+	private Set<Event> participatingEvents = new HashSet<>();
 
 	public User() {
 		super();
@@ -122,6 +137,22 @@ public class User implements Serializable {
 
 	public void setUsername(String username) {
 		this.username = username;
+	}
+
+	public List<Event> getCreatedEvents() {
+		return createdEvents;
+	}
+
+	public void setCreatedEvents(List<Event> createdEvents) {
+		this.createdEvents = createdEvents;
+	}
+
+	public Set<Event> getParticipatingEvents() {
+		return participatingEvents;
+	}
+
+	public void setParticipatingEvents(Set<Event> participatingEvents) {
+		this.participatingEvents = participatingEvents;
 	}
 
 	@Override

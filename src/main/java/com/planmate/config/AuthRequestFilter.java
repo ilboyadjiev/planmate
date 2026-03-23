@@ -19,6 +19,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import com.planmate.util.JwtUtil;
 
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.MalformedJwtException;
 
 @Component
@@ -43,13 +44,24 @@ public class AuthRequestFilter extends OncePerRequestFilter {
 			jwt = authorizationHeader.substring(7);
 			try {
 				username = jwtUtil.extractUsername(jwt);
-			} catch (IllegalArgumentException e) {
-				logger.error("Unable to get JWT Token");
 			} catch (ExpiredJwtException e) {
 				logger.warn("JWT Token has expired"); 
+				rejectInvalidToken(response, "Token has expired");
+				return;
 			} catch (MalformedJwtException e) {
-				logger.warn("JWT Token is malformed or null");
+				logger.warn("JWT Token is malformed");
+				rejectInvalidToken(response, "Malformed token");
+				return;
+			} catch (IllegalArgumentException e) {
+				logger.error("Unable to get JWT Token");
+				rejectInvalidToken(response, "Unable to read token");
+				return;
+			} catch (JwtException e) {
+				logger.warn("JWT signature or validation failed");
+				rejectInvalidToken(response, "Invalid token signature");
+				return;
 			}
+			
 		}
 
 		if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -64,6 +76,12 @@ public class AuthRequestFilter extends OncePerRequestFilter {
 			}
 		}
 		chain.doFilter(request, response);
+	}
+
+	private void rejectInvalidToken(HttpServletResponse response, String message) throws IOException {
+		response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+		response.setContentType("application/json");
+		response.getWriter().write("{\"error\": \"" + message + "\"}");
 	}
 
 	@Override

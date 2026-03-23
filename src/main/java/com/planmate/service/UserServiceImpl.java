@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import com.planmate.dao.EventDAO;
+import com.planmate.dao.FriendshipDao;
 import com.planmate.dao.UserDAO;
 import com.planmate.dto.User;
 import com.planmate.exception.BusinessLogicException;
@@ -18,9 +20,15 @@ public class UserServiceImpl implements UserService {
 	@Autowired
 	private UserDAO userDAO;
 
+	@Autowired
+	private FriendshipDao friendshipDao;
+
+	@Autowired
+	private EventDAO eventDAO;
+
 	@Transactional
 	@Override
-	public List<User> getAllUsers(){
+	public List<User> getAllUsers() {
 		return userDAO.getAllUsers();
 	}
 
@@ -29,7 +37,8 @@ public class UserServiceImpl implements UserService {
 	public User createUser(User user) {
 		// check if email is in use
 		if (userDAO.isEmailDuplicate(user.getEmail())) {
-			throw new BusinessLogicException("Email address is already in use: " + user.getEmail(), null, HttpStatus.CONFLICT);
+			throw new BusinessLogicException("Email address is already in use: " + user.getEmail(), null,
+					HttpStatus.CONFLICT);
 		}
 		return userDAO.createUser(user);
 	}
@@ -57,7 +66,7 @@ public class UserServiceImpl implements UserService {
 	public User getUserByUsername(String username) {
 		return userDAO.getUserByUsername(username);
 	}
-	
+
 	@Transactional
 	@Override
 	public User getUserById(Long id) {
@@ -82,11 +91,41 @@ public class UserServiceImpl implements UserService {
 		return userDAO.searchUsernames(user, searchText);
 	}
 
+	@Transactional
 	@Override
 	public void changePassword(User currentUser, String newPassword) {
 		currentUser.setPassword(newPassword);
 		userDAO.updateUser(currentUser);
 	}
 
+	@Transactional
+	@Override
+	public void deleteUser(User user) {
+		// fetch the user to ensure we have all associations loaded
+		User managedUser = getUserById(user.getId());
+
+		try {
+			// delete all events created by the user and remove the user from participating events
+			eventDAO.getAllEventsForUsername(managedUser.getUsername()).forEach(event -> eventDAO.deleteEvent(event));
+			
+			if (managedUser.getParticipatingEvents() != null) {
+				managedUser.getParticipatingEvents().forEach(event -> {
+					event.getParticipants().remove(managedUser);
+					eventDAO.updateEvent(event);
+				});
+			}
+			
+			// delete all friendships of the user
+			friendshipDao.getFriendshipsListByUserEmail(managedUser.getEmail())
+					.forEach(friendship -> friendshipDao.delete(friendship));
+			
+			// delete the user
+			userDAO.deleteUserById(managedUser.getId());
+		} catch (Exception e) {
+			throw new BusinessLogicException("User " + user.getEmail() + " could not be deleted", null,
+					HttpStatus.INTERNAL_SERVER_ERROR);
+		}
+
+	}
 
 }

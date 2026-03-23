@@ -80,4 +80,13 @@ public class UserDaoImpl implements UserDAO {
 				.list();
 		return users;
 	}
+
+	@Override
+	public void deleteUserById(Long id) {
+		Session session = sessionFactory.getCurrentSession();
+		User userToDelete = session.get(User.class, id);
+		if (userToDelete != null) {
+			session.delete(userToDelete);
+		}
+	}
 }

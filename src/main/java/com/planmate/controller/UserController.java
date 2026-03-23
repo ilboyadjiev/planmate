@@ -1,12 +1,15 @@
 package com.planmate.controller;
 
+import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -33,10 +36,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "User Controller", description = "User Management Interface")
 public class UserController {
 
-    private static final Logger logger = LoggerFactory.getLogger(UserController.class);
+	private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
-    @Autowired
-    private JwtUtil jwtUtil;
+	@Autowired
+	private JwtUtil jwtUtil;
 
 	@Autowired
 	private UserService userService;
@@ -51,14 +54,14 @@ public class UserController {
 	}
 
 	@GetMapping("/all")
-	public ResponseEntity<List<User>> getUsers(){
+	public ResponseEntity<List<User>> getUsers() {
 		List<User> allUsers = userService.getAllUsers();
 		logger.info("Getting all users.");
 		return new ResponseEntity<>(allUsers, HttpStatus.OK);
 	}
 
 	@GetMapping("/{email}")
-	public ResponseEntity<User> getUserByEmail(@PathVariable String email){
+	public ResponseEntity<User> getUserByEmail(@PathVariable String email) {
 		User foundUser = userService.getUserByEmail(email);
 		return new ResponseEntity<>(foundUser, HttpStatus.OK);
 	}
@@ -96,8 +99,9 @@ public class UserController {
 	}
 
 	@GetMapping("/search")
-	public ResponseEntity<List<User>> searchUsernames(@RequestParam String term, @RequestHeader("Authorization") String authorizationHeader){
-        // Retrieve the currently logged in user
+	public ResponseEntity<List<User>> searchUsernames(@RequestParam String term,
+			@RequestHeader("Authorization") String authorizationHeader) {
+		// Retrieve the currently logged in user
 		String username = "";
 		if (authorizationHeader != null) {
 			String jwtToken = authorizationHeader.replace("Bearer ", "");
@@ -108,5 +112,38 @@ public class UserController {
 
 		List<User> results = userService.searchUsernames(username, term);
 		return new ResponseEntity<>(results, HttpStatus.OK);
+	}
+
+	@DeleteMapping("/{id}")
+	public ResponseEntity<?> deleteAccount(@PathVariable Long id, Principal principal) {
+
+		if (principal == null) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+					.body(Map.of("error", "You must be logged in to do this."));
+		}
+
+		User targetUser = userService.getUserById(id);
+
+		if (targetUser == null) {
+			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "User not found."));
+		}
+
+		String authenticatedUsername = principal.getName();
+
+		if (!targetUser.getEmail().equals(authenticatedUsername)
+				&& !targetUser.getUsername().equals(authenticatedUsername)) {
+
+			return ResponseEntity.status(HttpStatus.FORBIDDEN)
+					.body(Map.of("error", "Security violation: You can only delete your own account."));
+		}
+
+		try {
+			userService.deleteUser(targetUser);
+			return ResponseEntity.ok(Map.of("message", "Account and all associated data successfully deleted."));
+
+		} catch (Exception e) {
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(Map.of("error", "Failed to delete account due to a server error.", "details", e.getMessage()));
+		}
 	}
 }

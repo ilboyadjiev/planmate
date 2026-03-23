@@ -25,4 +25,6 @@ public interface UserService {
 	List<User> searchUsernames(String user, String searchText);
 
 	void changePassword(User currentUser, String newPassword);
+
+	void deleteUser(User user);
 }
