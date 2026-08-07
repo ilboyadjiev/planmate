@@ -23,6 +23,7 @@ services:
       - 'SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}'
       - 'SPRING_PROFILES_ACTIVE=docker' 
       - 'JWT_SECRET=${JWT_SECRET}'
+      - 'GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}'
     networks:
       - planmate-network
     depends_on:
