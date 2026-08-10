@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EntityListeners;
@@ -73,6 +74,10 @@ public class Event implements Serializable {
 	@LastModifiedBy
 	@Column(name = "updated_by")
 	private String updatedBy;
+
+	@ManyToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "location_id", referencedColumnName = "id")
+	private Location location;
 
 	public Event() {
 	}
