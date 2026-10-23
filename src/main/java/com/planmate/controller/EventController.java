@@ -2,7 +2,10 @@ package com.planmate.controller;
 
 import java.security.Principal;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -127,5 +130,16 @@ public class EventController {
 					HttpStatus.BAD_REQUEST);
 		}
 	}
+	
+
+    @GetMapping("/ai-summary")
+    public ResponseEntity<String> getAiSummary(Principal principal) {
+    	if (principal == null) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User is not authenticated.");
+		}
+    	String summary = "Disalbed for now";//eventService.getAiSummary(principal.getName());
+    	logger.info("AI Summary for user {} was generated successfully", principal.getName());
+        return ResponseEntity.ok(summary);
+    }
 
 }

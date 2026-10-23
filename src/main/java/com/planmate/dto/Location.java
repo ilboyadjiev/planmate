@@ -2,6 +2,7 @@ package com.planmate.dto;
 
 import java.io.Serializable;
 import java.sql.Timestamp;
+import java.util.Objects;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -126,4 +127,33 @@ public class Location implements Serializable {
 		this.updatedBy = updatedBy;
 	}
 
+	@Override
+	public int hashCode() {
+		return Objects.hash(city, country, creationTime, id, info, street, updateTime, updatedBy, zipcode);
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		Location other = (Location) obj;
+		return Objects.equals(city, other.city) && Objects.equals(country, other.country)
+				&& Objects.equals(creationTime, other.creationTime) && Objects.equals(id, other.id)
+				&& Objects.equals(info, other.info) && Objects.equals(street, other.street)
+				&& Objects.equals(updateTime, other.updateTime) && Objects.equals(updatedBy, other.updatedBy)
+				&& Objects.equals(zipcode, other.zipcode);
+	}
+
+	@Override
+	public String toString() {
+		return "Location [id=" + id + ", street=" + street + ", city=" + city + ", zipcode=" + zipcode + ", country="
+				+ country + ", info=" + info + "]";
+	}
+
+	
+	
 }

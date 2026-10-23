@@ -23,14 +23,25 @@ The core backend service for the Planmate ecosystem. This RESTful API is built w
 * IDE of your choice (IntelliJ IDEA, Eclipse, VS Code)
 
 ### 1. Database Setup
-The easiest way to run the PostgreSQL database locally is via Docker. 
-Run the following command in the root directory:
+The easiest way to run the PostgreSQL databases locally is via Docker. 
+
+Both the Postgres and the MongoDB are required.
+
+Run the following command in the root directory. Replace "your_user" and "your_pass" with the username and password you would like to use for the local connection.
 
 
-	docker-compose up -d db
-
+	docker run -d  --name planmate-postgres  -p 5432:5432 -e POSTGRES_USER=your_user -e POSTGRES_PASSWORD=your_pass -e POSTGRES_DB=your_db_name -v planmate-pg-data:/var/lib/postgresql/data postgres:14-alpine
 
 Ensure your application.yml or application.properties is configured to point to localhost:5432 for local development.
+
+To start a MongoDB container locally:
+
+
+	docker run -d --name planmate-mongodb -p 27017:27017 -e MONGO_INITDB_ROOT_USERNAME=your_user -e MONGO_INITDB_ROOT_PASSWORD=your_pass -e MONGO_INITDB_DATABASE=planmate_nosql -v planmate-mongo-data:/data/db mongo:6
+
+Ensure your application.yml or application.properties is configured to point to localhost:27017 for local development.
+
+
 
 ### 2. Environment Variables ###
 

@@ -76,7 +76,7 @@ public class Event implements Serializable {
 	private String updatedBy;
 
 	@ManyToOne(cascade = CascadeType.ALL)
-    @JoinColumn(name = "location_id", referencedColumnName = "id")
+	@JoinColumn(name = "location_id", referencedColumnName = "id")
 	private Location location;
 
 	public Event() {
@@ -178,10 +178,18 @@ public class Event implements Serializable {
 		this.updatedBy = updatedBy;
 	}
 
+	public Location getLocation() {
+		return location;
+	}
+
+	public void setLocation(Location location) {
+		this.location = location;
+	}
+
 	@Override
 	public int hashCode() {
-		return Objects.hash(creationTime, deleted, description, endTime, id, startTime, title, updateTime,
-				updatedBy, user);
+		return Objects.hash(creationTime, deleted, description, endTime, id, location, participantIds, participants,
+				startTime, title, updateTime, updatedBy, user);
 	}
 
 	@Override
@@ -195,17 +203,24 @@ public class Event implements Serializable {
 		Event other = (Event) obj;
 		return Objects.equals(creationTime, other.creationTime) && deleted == other.deleted
 				&& Objects.equals(description, other.description) && Objects.equals(endTime, other.endTime)
-				&& Objects.equals(id, other.id)
-				&& Objects.equals(startTime, other.startTime) && Objects.equals(title, other.title)
-				&& Objects.equals(updateTime, other.updateTime) && Objects.equals(updatedBy, other.updatedBy)
-				&& Objects.equals(user, other.user);
+				&& Objects.equals(id, other.id) && Objects.equals(location, other.location)
+				&& Objects.equals(participantIds, other.participantIds)
+				&& Objects.equals(participants, other.participants) && Objects.equals(startTime, other.startTime)
+				&& Objects.equals(title, other.title) && Objects.equals(updateTime, other.updateTime)
+				&& Objects.equals(updatedBy, other.updatedBy) && Objects.equals(user, other.user);
 	}
 
 	@Override
 	public String toString() {
 		return "Event [id=" + id + ", user=" + user + ", title=" + title + ", startTime=" + startTime + ", endTime="
-				+ endTime + ", description=" + description + ", deleted=" + deleted
-				+ ", creationTime=" + creationTime + ", updateTime=" + updateTime + ", updatedBy=" + updatedBy + "]";
+				+ endTime + ", description=" + description + ", participants=" + participants + ", participantIds="
+				+ participantIds + ", deleted=" + deleted + ", creationTime=" + creationTime + ", updateTime="
+				+ updateTime + ", updatedBy=" + updatedBy + ", location=" + location + "]";
+	}
+
+	public String toSimplifiedString() {
+		return "Event title=" + title + ", startTime=" + startTime + ", endTime=" + endTime + ", description="
+				+ description + ", participants=" + participants + ", location=" + location + "]";
 	}
 
 }

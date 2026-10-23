@@ -13,6 +13,20 @@ services:
     volumes:
       - planmate-volume:/var/lib/postgresql/data
 
+  mongodb:
+      image: 'mongo:6'
+      restart: always
+      ports:
+        - "27017:27017"
+      environment:
+        - 'MONGO_INITDB_ROOT_USERNAME=${MONGO_USER}'
+        - 'MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}'
+        - 'MONGO_INITDB_DATABASE=planmate_nosql'
+      networks:
+        - planmate-network
+      volumes:
+        - planmate-mongo-volume:/data/db
+
   backend:
     image: 'iliandocker/planmate-docker-repo:planmate-backend'
     container_name: planmate-backend
@@ -28,6 +42,7 @@ services:
       - planmate-network
     depends_on:
       - postgres
+      - mongodb
 
   frontend:
     image: 'iliandocker/planmate-docker-repo:planmate-frontend'
@@ -46,6 +61,8 @@ services:
 
 volumes:
   planmate-volume:
+    driver: local
+  planmate-mongo-volume:
     driver: local
 
 networks:
