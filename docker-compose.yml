@@ -38,6 +38,9 @@ services:
       - 'SPRING_PROFILES_ACTIVE=docker' 
       - 'JWT_SECRET=${JWT_SECRET}'
       - 'GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}'
+      - 'SPRING_DATA_MONGODB_URI=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongodb:27017/planmate_nosql?authSource=admin'
+      - 'GEMINI_API_KEY=${GEMINI_API_KEY}'
+      - 'LOCATIONIQ_API_KEY=${LOCATIONIQ_API_KEY}'
     networks:
       - planmate-network
     depends_on:
