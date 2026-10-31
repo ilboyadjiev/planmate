@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.google.genai.Client;
@@ -63,6 +65,10 @@ public class EventMongoService {
 	public List<EventDoc> getEventsByTag(String tag) {
         return repository.findByTagsInAndIsPublicTrue(Collections.singletonList(tag));
     }
+	
+	public Page<EventDoc> getEventsByTag(String tag, Pageable pageable) {
+		return repository.findByIsPublicTrueAndTagsContainingIgnoreCaseOrderByStartTimeAsc(tag, pageable);
+	}
 
 	public void mergeGuestEvents(String guestId, String realUserId) {
 		List<EventDoc> guestEvents = repository.findByCreatorId(guestId);

@@ -1,8 +1,15 @@
 package com.planmate.controller2;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -65,8 +72,22 @@ public class EventMongoController {
 	}
 
 	@GetMapping("/feed")
-	public ResponseEntity<List<EventDoc>> getFeedEvents(@RequestParam String tag) {
-		return ResponseEntity.ok(eventService.getEventsByTag(tag));
+	public ResponseEntity<?> getFeedEvents(@RequestParam(required = false) String tag,
+	        @RequestParam(defaultValue = "0") int page,
+	        @RequestParam(defaultValue = "4") int size) {
+		Pageable paging = PageRequest.of(page, size, Sort.by("startTime").ascending());
+
+	    if (tag == null && StringUtils.isEmpty(tag)) {
+	    	return ResponseEntity.badRequest().build();
+	    }
+	    Page<EventDoc> pageEvents = eventService.getEventsByTag(tag, paging);
+
+	    Map<String, Object> response = new HashMap<>();
+	    response.put("events", pageEvents.getContent());
+	    response.put("currentPage", pageEvents.getNumber());
+	    response.put("totalPages", pageEvents.getTotalPages());
+
+	    return ResponseEntity.ok(response);
 	}
 
 	@PostMapping("/merge")
