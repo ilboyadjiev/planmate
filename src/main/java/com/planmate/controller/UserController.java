@@ -60,9 +60,12 @@ public class UserController {
 		return new ResponseEntity<>(allUsers, HttpStatus.OK);
 	}
 
-	@GetMapping("/{email}")
-	public ResponseEntity<User> getUserByEmail(@PathVariable String email) {
+	@GetMapping("/profile")
+	public ResponseEntity<User> getUserByEmail(@RequestParam("email") String email) {
 		User foundUser = userService.getUserByEmail(email);
+		if (foundUser == null) {
+			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+		}
 		return new ResponseEntity<>(foundUser, HttpStatus.OK);
 	}
 

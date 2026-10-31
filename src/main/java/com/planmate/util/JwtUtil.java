@@ -44,12 +44,6 @@ public class JwtUtil {
 		return extractExpiration(token).before(new Date());
 	}
 
-	public String generateToken(String username) {
-		return Jwts.builder().setSubject(username).setIssuedAt(new Date())
-				.setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10 hours validity
-				.signWith(SignatureAlgorithm.HS256, secret).compact();
-	}
-
 	public Boolean validateToken(String token, String username) {
 		final String extractedUsername = extractUsername(token);
 		return (extractedUsername.equals(username) && !isTokenExpired(token));

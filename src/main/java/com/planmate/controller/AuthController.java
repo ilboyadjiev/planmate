@@ -67,29 +67,6 @@ public class AuthController {
 	@Value("${google.client.id}")
 	private String googleClientId;
 
-	@PostMapping("/authenticate")
-	public ResponseEntity<?> createAuthenticationToken(@RequestBody User user) throws Exception {
-		try {
-			authenticationManager
-					.authenticate(new UsernamePasswordAuthenticationToken(user.getEmail(), user.getPassword()));
-		} catch (Exception e) {
-			return ResponseEntity.badRequest().body("Incorrect username or password");
-		}
-
-		// email is used for auth
-		final UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
-		final String jwt = jwtUtil.generateToken(userDetails.getUsername());
-		logger.info("User " + userDetails.getUsername() + " authenticated successfully, JWT generated");
-
-		User userInfo = userService.getUserByEmail(user.getEmail());
-
-		Map<String, String> response = new HashMap<>();
-		response.put("jwt", jwt);
-		response.put("username", userInfo.getUsername());
-		response.put("firstName", userInfo.getFirstName());
-		return ResponseEntity.ok(response);
-	}
-
 	@PostMapping("/login")
 	public ResponseEntity<?> loginUser(@RequestBody AuthenticationRequest authenticationRequest) {
 		try {
@@ -104,7 +81,7 @@ public class AuthController {
 			User currentUser = userService.getUserByEmail(authenticationRequest.getEmail());
 
 			return ResponseEntity.ok(
-					new JwtResponse(accessToken, refreshToken, currentUser.getUsername(), currentUser.getFirstName()));
+					new JwtResponse(accessToken, refreshToken, currentUser.getUsername(), currentUser.getFirstName(), currentUser.getEmail()));
 
 		} catch (BadCredentialsException e) {
 			return new ResponseEntity<>("Incorrect email or password", HttpStatus.UNAUTHORIZED);
@@ -128,7 +105,7 @@ public class AuthController {
 				String newAccessToken = jwtUtil.generateAccessToken(userDetails);
 
 				return ResponseEntity.ok(new JwtResponse(newAccessToken, refreshToken, currentUser.getEmail(),
-						currentUser.getFirstName()));
+						currentUser.getFirstName(), currentUser.getEmail()));
 			} else {
 				return new ResponseEntity<>("Invalid Refresh Token", HttpStatus.FORBIDDEN);
 			}
@@ -144,13 +121,15 @@ public class AuthController {
 		}
 
 		user.setPassword(passwordEncoder.encode(user.getPassword()));
-		user.setRole("ROLE_USER"); // default role
+		user.setRole("ROLE_USER"); 
 		User created = userService.createUser(user);
 
-		final String jwt = jwtUtil.generateToken(created.getUsername());
-		Map<String, String> response = new HashMap<>();
-		response.put("jwt", jwt);
-		return ResponseEntity.ok(response);
+		final UserDetails userDetails = userDetailsService.loadUserByUsername(created.getEmail());
+		final String accessToken = jwtUtil.generateAccessToken(userDetails);
+		final String refreshToken = jwtUtil.generateRefreshToken(userDetails);
+
+		return ResponseEntity.ok(
+				new JwtResponse(accessToken, refreshToken, created.getUsername(), created.getFirstName(), created.getEmail()));
 	}
 
 	@GetMapping("/check-email-exists/{emailToCheck}")
@@ -234,7 +213,7 @@ public class AuthController {
 
 				logger.info("Google SSO login successful for email: " + email);
 				return ResponseEntity
-						.ok(new JwtResponse(accessToken, refreshToken, user.getUsername(), user.getFirstName()));
+						.ok(new JwtResponse(accessToken, refreshToken, user.getUsername(), user.getFirstName(), user.getEmail()));
 
 			} else {
 				return new ResponseEntity<>("Invalid Google token.", HttpStatus.UNAUTHORIZED);

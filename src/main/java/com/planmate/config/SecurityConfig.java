@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -35,9 +36,11 @@ public class SecurityConfig {
 		if (securityDisabled) {
 			http.authorizeRequests().anyRequest().permitAll().and().csrf().disable();
 		} else {
-			http.csrf().disable().authorizeRequests()
-					.antMatchers("/api/v1/auth/**", "/hello", "/api/health", "/error").permitAll().anyRequest()
-					.authenticated().and().sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+			http.cors(Customizer.withDefaults()).csrf().disable().authorizeRequests()
+					.antMatchers("/api/v1/auth/**", "/hello", "/api/health", "/error", "/swagger-ui/**", "/api-docs/**").permitAll()
+					.antMatchers("/api/v2/events/**").permitAll()
+					.anyRequest().authenticated().and().sessionManagement()
+					.sessionCreationPolicy(SessionCreationPolicy.STATELESS);
 
 			http.addFilterBefore(authRequestFilter, UsernamePasswordAuthenticationFilter.class);
 		}
@@ -46,7 +49,8 @@ public class SecurityConfig {
 
 	@Bean
 	public WebSecurityCustomizer webSecurityCustomizer() {
-		return (web) -> web.ignoring().antMatchers("/api/health", "/api/health/**", "/error");
+		return (web) -> web.ignoring().antMatchers("/api/health", "/api/health/**", "/error", "/swagger-ui/**",
+				"/api-docs/**");
 	}
 
 	@Bean
@@ -57,7 +61,7 @@ public class SecurityConfig {
 
 	@Bean
 	public PasswordEncoder passwordEncoder() {
-		return new BCryptPasswordEncoder();
+		return new BCryptPasswordEncoder(12);
 	}
 
 	@Bean

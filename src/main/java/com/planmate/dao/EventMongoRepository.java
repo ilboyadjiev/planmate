@@ -15,5 +15,5 @@ public interface EventMongoRepository extends MongoRepository<EventDoc, String> 
     
     List<EventDoc> findByCreatorIdAndStartTimeBetween(String creatorId, Instant startTime, Instant endTime);
     
-    List<EventDoc> findByTagsIn(List<String> tags);
+    List<EventDoc> findByTagsInAndIsPublicTrue(List<String> tags);
 }

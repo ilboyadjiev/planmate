@@ -5,12 +5,14 @@ public class JwtResponse {
 	private String refreshToken;
 	private String username;
 	private String firstName;
+	private String email;
 
-	public JwtResponse(String accessToken, String refreshToken, String username, String firstName) {
+	public JwtResponse(String accessToken, String refreshToken, String username, String firstName, String email) {
 		this.accessToken = accessToken;
 		this.refreshToken = refreshToken;
 		this.username = username;
 		this.firstName = firstName;
+		this.email = email;
 	}
 
 	public String getAccessToken() {
@@ -44,4 +46,13 @@ public class JwtResponse {
 	public void setFirstName(String firstName) {
 		this.firstName = firstName;
 	}
+
+	public String getEmail() {
+		return email;
+	}
+
+	public void setEmail(String email) {
+		this.email = email;
+	}
+	
 }

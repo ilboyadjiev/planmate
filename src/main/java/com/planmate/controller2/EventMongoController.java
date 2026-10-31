@@ -68,4 +68,11 @@ public class EventMongoController {
 	public ResponseEntity<List<EventDoc>> getFeedEvents(@RequestParam String tag) {
 		return ResponseEntity.ok(eventService.getEventsByTag(tag));
 	}
+
+	@PostMapping("/merge")
+	public ResponseEntity<Void> mergeGuestEvents(@RequestParam String guestId, @RequestParam String realUserId) {
+
+		eventService.mergeGuestEvents(guestId, realUserId);
+		return ResponseEntity.ok().build();
+	}
 }

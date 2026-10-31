@@ -33,6 +33,7 @@ public class EventMongoService {
 	public EventDoc updateEvent(String id, EventDoc updatedData) {
 		EventDoc existing = getEventById(id);
 		existing.setTitle(updatedData.getTitle());
+		existing.setIsPublic(updatedData.getIsPublic());
 		existing.setDescription(updatedData.getDescription());
 		existing.setStartTime(updatedData.getStartTime());
 		existing.setEndTime(updatedData.getEndTime());
@@ -49,6 +50,16 @@ public class EventMongoService {
     }
 	
 	public List<EventDoc> getEventsByTag(String tag) {
-        return repository.findByTagsIn(Collections.singletonList(tag));
+        return repository.findByTagsInAndIsPublicTrue(Collections.singletonList(tag));
     }
+
+	
+	public void mergeGuestEvents(String guestId, String realUserId) {
+		List<EventDoc> guestEvents = repository.findByCreatorId(guestId);
+		if (guestEvents.isEmpty()) {
+			return;
+		}
+		guestEvents.forEach(event -> event.setCreatorId(realUserId));
+		repository.saveAll(guestEvents);
+	}
 }

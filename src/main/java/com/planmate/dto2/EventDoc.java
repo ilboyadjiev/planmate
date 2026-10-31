@@ -26,6 +26,7 @@ public class EventDoc {
 	private List<String> participantIds = new ArrayList<>();
 	private List<String> tags = new ArrayList<>();
 	private EventLocation location;
+	private Boolean isPublic;
 
 	public EventDoc() {
 	}
@@ -101,6 +102,16 @@ public class EventDoc {
 	public void setLocation(EventLocation location) {
 		this.location = location;
 	}
+
+	public Boolean getIsPublic() {
+		return isPublic;
+	}
+
+	public void setIsPublic(Boolean isPublic) {
+		this.isPublic = isPublic;
+	}
+
+
 
 	public static class EventLocation {
 		private String name;
