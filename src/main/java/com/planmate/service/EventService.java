@@ -23,5 +23,4 @@ public interface EventService {
 
 	List<Event> findByUserEmailAndStartTimeBetween(String currentUserEmail, Timestamp startTime, Timestamp endTime);
 	
-	String getAiSummary(String userEmail);
 }

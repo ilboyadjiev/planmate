@@ -163,4 +163,9 @@ public class EventDoc {
 			this.country = country;
 		}
 	}
+
+	public String toSimplifiedString() {
+		return "Event title=" + title + ", startTime=" + startTime + ", endTime=" + endTime + ", description="
+				+ description + ", location=" + location + "]";
+	}
 }
