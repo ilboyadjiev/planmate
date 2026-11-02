@@ -1,0 +1,12 @@
+target
+logs
+.git
+.github
+.idea
+.settings
+.classpath
+.project
+.env
+.env.*
+*.jar
+.DS_Store

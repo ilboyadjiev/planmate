@@ -1,12 +1,70 @@
-name: Build and Deploy Backend
+name: CI and Deploy Backend
 
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  IMAGE: iliandocker/planmate-docker-repo
 
 jobs:
-  build-and-deploy:
+  ci:
+    name: Test and build
     runs-on: ubuntu-latest
+
+    # Throwaway databases so the full Spring context (contextLoads) starts like in production
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_DB: planmate
+          POSTGRES_USER: planmate
+          POSTGRES_PASSWORD: planmate
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U planmate"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      mongodb:
+        image: mongo:6
+        ports:
+          - 27017:27017
+
+    env:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/planmate
+      SPRING_DATASOURCE_USERNAME: planmate
+      SPRING_DATASOURCE_PASSWORD: planmate
+      SPRING_DATA_MONGODB_URI: mongodb://localhost:27017/planmate_nosql
+      # Test-only value; production uses the secret from the VM's .env
+      JWT_SECRET: ci-only-secret-not-used-anywhere-else-0123456789
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 11
+          cache: maven
+
+      # Runs all tests, then builds the WAR (the Docker build skips tests, so this is the gate)
+      - name: Test and package
+        run: mvn -B package
+
+  build-and-deploy:
+    name: Build image and deploy
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-backend
+      cancel-in-progress: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -20,37 +78,44 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Two tags: the moving tag docker-compose on the VM pulls, plus an immutable
+      # per-commit tag for traceability and rollback.
       - name: Build and push Backend Image
         uses: docker/build-push-action@v5
         with:
-            context: .
-            push: true
-            platforms: linux/amd64 
-            tags: iliandocker/planmate-docker-repo:planmate-backend
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.IMAGE }}:planmate-backend
+            ${{ env.IMAGE }}:planmate-backend-${{ github.sha }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
 
       - name: Deploy to GCP VM
         uses: appleboy/ssh-action@v1.0.3
         with:
-            host: ${{ secrets.GCP_VM_IP }}
-            username: ${{ secrets.GCP_SSH_USERNAME }}
-            key: ${{ secrets.GCP_SSH_KEY }}
-            script: |
-              cd ~/planmate
-              sudo docker-compose pull backend
-              sudo docker-compose up -d --remove-orphans backend
-              sudo docker image prune -f
+          host: ${{ secrets.GCP_VM_IP }}
+          username: ${{ secrets.GCP_SSH_USERNAME }}
+          key: ${{ secrets.GCP_SSH_KEY }}
+          script: |
+            cd ~/planmate
+            sudo docker-compose pull backend
+            sudo docker-compose up -d --remove-orphans backend
+            sudo docker image prune -f
 
-      - name: Verify Health Check
+      - name: Verify the new build is live
         run: |
-          echo "Waiting for Spring Boot to respond via HTTPS..."
-          for i in {1..15}; do
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://www.planmate.org/api/health || echo "000")
-            if [ "$HTTP_STATUS" == "200" ]; then
-              echo "Health check passed! Nginx + Backend are synced."
+          echo "Waiting for backend build ${GITHUB_SHA} to be served..."
+          for i in {1..18}; do
+            BODY=$(curl -fsS "https://www.planmate.org/api/health" || true)
+            if echo "$BODY" | grep -q "\"version\":\"${GITHUB_SHA}\""; then
+              echo "Smoke test passed: backend ${GITHUB_SHA} is live."
               exit 0
             fi
-            echo "App not ready yet (Status: $HTTP_STATUS). Retrying... ($i/15)"
+            echo "Not live yet (got: ${BODY:-no response}). Retrying... ($i/18)"
             sleep 10
           done
-          echo "Health check failed."
+          echo "Smoke test failed: the backend is not serving ${GITHUB_SHA}."
+          echo "Roll back with: docker pull ${IMAGE}:planmate-backend-<previous-sha>, retag as :planmate-backend, push, and re-run compose."
           exit 1

@@ -22,6 +22,10 @@ WORKDIR /app
 # Copy the WAR file from the build stage, but rename it to app.war
 COPY --from=build /app/target/planmate-0.0.1-SNAPSHOT.war app.war
 
+# Commit SHA reported by /api/health, so the deploy smoke test can verify the new build is live
+ARG GIT_SHA=unknown
+ENV APP_VERSION=$GIT_SHA
+
 # Expose port 8080
 EXPOSE 8080
 
