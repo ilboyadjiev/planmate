@@ -44,7 +44,7 @@ jobs:
         run: |
           echo "Waiting for Spring Boot to respond via HTTPS..."
           for i in {1..15}; do
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://planmate.org/api/health || echo "000")
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://www.planmate.org/api/health || echo "000")
             if [ "$HTTP_STATUS" == "200" ]; then
               echo "Health check passed! Nginx + Backend are synced."
               exit 0
