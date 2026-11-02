@@ -53,16 +53,21 @@ public class UserController {
 		return new ResponseEntity<>("Please use /api/v1/auth/register", HttpStatus.METHOD_NOT_ALLOWED);
 	}
 
-	@GetMapping("/all")
-	public ResponseEntity<List<User>> getUsers() {
-		List<User> allUsers = userService.getAllUsers();
-		logger.info("Getting all users.");
-		return new ResponseEntity<>(allUsers, HttpStatus.OK);
+	/** True if the user with this id is the caller. Every per-user endpoint must check this. */
+	private boolean isSelf(Long id, Principal principal) {
+		// Fail closed: a missing name must never match (Objects.equals(null, null) would grant access)
+		String callerEmail = principal == null ? null : principal.getName();
+		if (callerEmail == null) {
+			return false;
+		}
+		User target = userService.getUserById(id);
+		return target != null && callerEmail.equals(target.getEmail());
 	}
 
+	/** Returns the caller's own profile. The optional email parameter is ignored (kept for older clients). */
 	@GetMapping("/profile")
-	public ResponseEntity<User> getUserByEmail(@RequestParam("email") String email) {
-		User foundUser = userService.getUserByEmail(email);
+	public ResponseEntity<User> getOwnProfile(Principal principal) {
+		User foundUser = userService.getUserByEmail(principal.getName());
 		if (foundUser == null) {
 			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 		}
@@ -71,7 +76,10 @@ public class UserController {
 
 	@PutMapping("/{id}")
 	@Operation(summary = "Update an existing user. Missing field values are overwritten.")
-	public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody User user) {
+	public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody User user, Principal principal) {
+		if (!isSelf(id, principal)) {
+			return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+		}
 		try {
 			User updatedUser = userService.updateUser(id, user);
 			return new ResponseEntity<>(updatedUser, HttpStatus.OK);
@@ -82,7 +90,10 @@ public class UserController {
 
 	@PatchMapping("/{id}")
 	@Operation(summary = "Update an existing user. Updates only provided fields.")
-	public ResponseEntity<User> patchUser(@PathVariable Long id, @RequestBody User user) {
+	public ResponseEntity<User> patchUser(@PathVariable Long id, @RequestBody User user, Principal principal) {
+		if (!isSelf(id, principal)) {
+			return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+		}
 		try {
 			User patchedUser = userService.updateUser(id, user);
 			return new ResponseEntity<>(patchedUser, HttpStatus.OK);
@@ -92,7 +103,10 @@ public class UserController {
 	}
 
 	@GetMapping("/{id}/friends")
-	public ResponseEntity<List<Friendship>> getFriendsListByUserId(@PathVariable Long id) {
+	public ResponseEntity<List<Friendship>> getFriendsListByUserId(@PathVariable Long id, Principal principal) {
+		if (!isSelf(id, principal)) {
+			return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+		}
 		User user = userService.getUserById(id);
 		if (user == null) {
 			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
@@ -131,10 +145,7 @@ public class UserController {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "User not found."));
 		}
 
-		String authenticatedUsername = principal.getName();
-
-		if (!targetUser.getEmail().equals(authenticatedUsername)
-				&& !targetUser.getUsername().equals(authenticatedUsername)) {
+		if (!isSelf(id, principal)) {
 
 			return ResponseEntity.status(HttpStatus.FORBIDDEN)
 					.body(Map.of("error", "Security violation: You can only delete your own account."));
@@ -146,7 +157,7 @@ public class UserController {
 
 		} catch (Exception e) {
 			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-					.body(Map.of("error", "Failed to delete account due to a server error.", "details", e.getMessage()));
+					.body(Map.of("error", "Failed to delete account due to a server error."));
 		}
 	}
 }

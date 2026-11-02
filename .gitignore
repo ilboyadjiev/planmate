@@ -34,3 +34,6 @@ build/
 
 # Ignore application-secrets.properties
 application-secrets.properties
+# Local environment (secrets)
+.env
+.DS_Store

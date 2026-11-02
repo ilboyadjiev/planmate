@@ -44,6 +44,11 @@ public class AuthRequestFilter extends OncePerRequestFilter {
 			jwt = authorizationHeader.substring(7);
 			try {
 				username = jwtUtil.extractUsername(jwt);
+				if (!jwtUtil.isAccessToken(jwt)) {
+					logger.warn("Refresh token used as access token");
+					rejectInvalidToken(response, "Invalid token type");
+					return;
+				}
 			} catch (ExpiredJwtException e) {
 				logger.warn("JWT Token has expired"); 
 				rejectInvalidToken(response, "Token has expired");
@@ -65,7 +70,14 @@ public class AuthRequestFilter extends OncePerRequestFilter {
 		}
 
 		if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-			UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+			UserDetails userDetails;
+			try {
+				userDetails = this.userDetailsService.loadUserByUsername(username);
+			} catch (RuntimeException e) {
+				// Valid signature but the account no longer exists (e.g. deleted)
+				rejectInvalidToken(response, "Unknown user");
+				return;
+			}
 
 			if (jwtUtil.validateToken(jwt, userDetails.getUsername())) {
 				UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken = new UsernamePasswordAuthenticationToken(
@@ -87,9 +99,11 @@ public class AuthRequestFilter extends OncePerRequestFilter {
 	@Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.contains("/api/health") 
-                || path.contains("/api/v1/auth/") 
-                || path.contains("/hello")
-                || path.contains("/error");
+        // /api/v1/auth/password needs the logged-in user, so it must go through this filter
+        boolean isPublicAuthEndpoint = path.startsWith("/api/v1/auth/") && !path.equals("/api/v1/auth/password");
+        return path.startsWith("/api/health")
+                || isPublicAuthEndpoint
+                || path.equals("/hello")
+                || path.equals("/error");
     }
 }

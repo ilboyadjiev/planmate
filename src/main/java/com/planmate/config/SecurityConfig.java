@@ -37,7 +37,11 @@ public class SecurityConfig {
 			http.authorizeRequests().anyRequest().permitAll().and().csrf().disable();
 		} else {
 			http.cors(Customizer.withDefaults()).csrf().disable().authorizeRequests()
+					// Order matters: the first matching rule wins.
+					.antMatchers("/api/v1/auth/password").authenticated()
 					.antMatchers("/api/v1/auth/**", "/hello", "/api/health", "/error", "/swagger-ui/**", "/api-docs/**").permitAll()
+					.antMatchers("/api/v2/events/merge").authenticated()
+					// Remaining event endpoints serve guests too; EventMongoController enforces ownership.
 					.antMatchers("/api/v2/events/**").permitAll()
 					.anyRequest().authenticated().and().sessionManagement()
 					.sessionCreationPolicy(SessionCreationPolicy.STATELESS);

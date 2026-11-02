@@ -86,8 +86,8 @@ public class AuthController {
 		} catch (BadCredentialsException e) {
 			return new ResponseEntity<>("Incorrect email or password", HttpStatus.UNAUTHORIZED);
 		} catch (Exception e) {
-			e.printStackTrace();
-			return new ResponseEntity<>("Server Error: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+			logger.error("Login failed", e);
+			return new ResponseEntity<>("Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	}
 
@@ -97,6 +97,9 @@ public class AuthController {
 
 		try {
 			String username = jwtUtil.extractUsername(refreshToken);
+			if (!jwtUtil.isRefreshToken(refreshToken)) {
+				return new ResponseEntity<>("Invalid Refresh Token", HttpStatus.FORBIDDEN);
+			}
 
 			UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 			User currentUser = userService.getUserByEmail(userDetails.getUsername());
@@ -158,12 +161,12 @@ public class AuthController {
 		if (currentUser == null) {
 			throw new BusinessLogicException("User not found.", null, HttpStatus.NOT_FOUND);
 		}
-		if (!currentUser.getPassword().equals(request.getCurrentPassword())) {
+		if (!passwordEncoder.matches(request.getCurrentPassword(), currentUser.getPassword())) {
 			throw new BusinessLogicException("Current password is incorrect.", null, HttpStatus.UNAUTHORIZED);
 		}
 
-		currentUser.setPassword(passwordEncoder.encode(request.getNewPassword()));
-		userService.changePassword(currentUser, request.getNewPassword());
+		// Store only the hash (changePassword persists the value it is given)
+		userService.changePassword(currentUser, passwordEncoder.encode(request.getNewPassword()));
 
 		return new ResponseEntity<>("Password updated successfully.", HttpStatus.OK);
 	}
@@ -184,6 +187,13 @@ public class AuthController {
 
 			if (idToken != null) {
 				GoogleIdToken.Payload payload = idToken.getPayload();
+
+				// Only trust the email if Google has verified it; otherwise anyone could create a Google
+				// account with someone else's address and log into their PlanMate account.
+				if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
+					logger.warn("Rejected Google login with unverified email");
+					return new ResponseEntity<>("Your Google email address is not verified.", HttpStatus.UNAUTHORIZED);
+				}
 
 				String email = payload.getEmail();
 				String firstName = (String) payload.get("given_name");
@@ -220,8 +230,7 @@ public class AuthController {
 			}
 		} catch (Exception e) {
 			logger.error("Google Auth Error: ", e);
-			return new ResponseEntity<>("Failed to process Google authentication: " + e.getMessage(),
-					HttpStatus.INTERNAL_SERVER_ERROR);
+			return new ResponseEntity<>("Failed to process Google authentication.", HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 	}
 }
