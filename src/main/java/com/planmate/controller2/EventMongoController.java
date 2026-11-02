@@ -2,10 +2,16 @@ package com.planmate.controller2;
 
 import java.security.Principal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.domain.Page;
@@ -26,8 +32,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.planmate.dto.Friendship;
+import com.planmate.dto.User;
 import com.planmate.dto2.EventDoc;
 import com.planmate.service.EventMongoService;
+import com.planmate.service.FriendshipService;
+import com.planmate.service.UserService;
+import com.planmate.util.ConstantsUtil;
 
 /**
  * Calendar events for both logged-in users and guests.
@@ -35,6 +46,9 @@ import com.planmate.service.EventMongoService;
  * Ownership is always decided by the server:
  * - Logged-in users own events under their email (the JWT subject). Any creatorId sent by the client is ignored.
  * - Guests (no token) identify themselves with their guest id ("guest_..."), which acts as a bearer secret.
+ *
+ * Only the creator may change or delete an event. Participants (participantIds = user ids, always accepted friends
+ * of the creator) see the event in their calendar and may open it, read-only.
  */
 @RestController
 @RequestMapping("/api/v2/events")
@@ -44,9 +58,61 @@ public class EventMongoController {
 	private static final int MAX_FEED_PAGE_SIZE = 50;
 
 	private final EventMongoService eventService;
+	private final UserService userService;
+	private final FriendshipService friendshipService;
 
-	public EventMongoController(EventMongoService eventService) {
+	public EventMongoController(EventMongoService eventService, UserService userService,
+			FriendshipService friendshipService) {
 		this.eventService = eventService;
+		this.userService = userService;
+		this.friendshipService = friendshipService;
+	}
+
+	/** The caller's user id as stored in participantIds, or null for guests. */
+	private String participantKey(Principal principal) {
+		if (principal == null || principal.getName() == null) {
+			return null;
+		}
+		User user = userService.getUserByEmail(principal.getName());
+		return user == null || user.getId() == null ? null : String.valueOf(user.getId());
+	}
+
+	private boolean isParticipant(EventDoc event, Principal principal) {
+		String key = participantKey(principal);
+		return key != null && event.getParticipantIds() != null && event.getParticipantIds().contains(key);
+	}
+
+	/**
+	 * Participants must be accepted friends of the creator; guests cannot invite anyone.
+	 * Rejects the request instead of silently dropping ids, so the client never believes it invited someone.
+	 */
+	private List<String> validatedParticipants(List<String> requested, Principal principal) {
+		Set<String> ids = requested == null ? Collections.emptySet()
+				: requested.stream().filter(Objects::nonNull).map(String::trim).filter(id -> !id.isEmpty())
+						.collect(Collectors.toCollection(LinkedHashSet::new));
+		if (ids.isEmpty()) {
+			return new ArrayList<>();
+		}
+		if (principal == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Guests cannot invite participants.");
+		}
+		String me = principal.getName();
+		Set<String> friendIds = friendshipService.getFriendshipList(me).stream()
+				.filter(f -> ConstantsUtil.FRIENDSHIP_STATUS_ACCEPTED.equalsIgnoreCase(f.getStatus()))
+				.map(f -> otherUser(f, me))
+				.filter(u -> u != null && u.getId() != null)
+				.map(u -> String.valueOf(u.getId()))
+				.collect(Collectors.toSet());
+		if (!friendIds.containsAll(ids)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Participants must be your friends.");
+		}
+		return new ArrayList<>(ids);
+	}
+
+	private static User otherUser(Friendship friendship, String myEmail) {
+		User a = friendship.getUserA();
+		User b = friendship.getUserB();
+		return a != null && myEmail.equals(a.getEmail()) ? b : a;
 	}
 
 	/** The identity that owns events for this request. */
@@ -84,6 +150,7 @@ public class EventMongoController {
 	@PostMapping
 	public ResponseEntity<EventDoc> createEvent(@RequestBody EventDoc event, Principal principal) {
 		event.setCreatorId(resolveOwner(principal, event.getCreatorId()));
+		event.setParticipantIds(validatedParticipants(event.getParticipantIds(), principal));
 		// Never let the client choose the id: save() with an existing id would overwrite someone else's event
 		event.setId(null);
 		return new ResponseEntity<>(eventService.createEvent(event), HttpStatus.CREATED);
@@ -93,7 +160,7 @@ public class EventMongoController {
 	public ResponseEntity<EventDoc> getEventById(@PathVariable String id,
 			@RequestParam(required = false) String guestId, Principal principal) {
 		EventDoc event = findEvent(id);
-		if (Boolean.TRUE.equals(event.getIsPublic())) {
+		if (Boolean.TRUE.equals(event.getIsPublic()) || isParticipant(event, principal)) {
 			return ResponseEntity.ok(event);
 		}
 		return ResponseEntity.ok(findOwnedEvent(id, resolveOwner(principal, guestId)));
@@ -102,7 +169,9 @@ public class EventMongoController {
 	@PutMapping("/{id}")
 	public ResponseEntity<EventDoc> updateEvent(@PathVariable String id, @RequestBody EventDoc event,
 			Principal principal) {
+		// Creator only: participants get 404 here just like strangers, their view is read-only
 		findOwnedEvent(id, resolveOwner(principal, event.getCreatorId()));
+		event.setParticipantIds(validatedParticipants(event.getParticipantIds(), principal));
 		return ResponseEntity.ok(eventService.updateEvent(id, event));
 	}
 
@@ -114,13 +183,16 @@ public class EventMongoController {
 		return ResponseEntity.noContent().build();
 	}
 
-	/** creatorId is only read for guests; logged-in users always get their own events. */
+	/**
+	 * Events the caller created plus events they were invited to. creatorId is only read for guests;
+	 * logged-in users are identified by their token.
+	 */
 	@GetMapping("/range")
 	public ResponseEntity<List<EventDoc>> getEventsByRange(@RequestParam(required = false) String creatorId,
 			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant start,
 			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant end, Principal principal) {
 		String owner = resolveOwner(principal, creatorId);
-		return ResponseEntity.ok(eventService.getEventsByCreatorAndRange(owner, start, end));
+		return ResponseEntity.ok(eventService.getVisibleEventsInRange(owner, participantKey(principal), start, end));
 	}
 
 	@GetMapping("/feed")

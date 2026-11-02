@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import com.planmate.dao.EventDAO;
 import com.planmate.dao.FriendshipDao;
 import com.planmate.dao.UserDAO;
+import com.planmate.dto.Contact;
 import com.planmate.dto.User;
 import com.planmate.exception.BusinessLogicException;
 
@@ -45,13 +46,42 @@ public class UserServiceImpl implements UserService {
 
 	@Transactional
 	@Override
-	public User updateUser(Long id, User user) {
+	public User updateUser(Long id, User user, boolean partial) {
 		User existing = userDAO.getUserById(id);
 		if (existing == null) {
-			// not found
 			return null;
 		}
-		user.setPassword(existing.getPassword()); // password is not updated here
+
+		// Only profile fields are copied. Email is the account identity (JWT subject, event owner) and stays fixed.
+		if (!partial || user.getFirstName() != null) {
+			existing.setFirstName(user.getFirstName());
+		}
+		if (!partial || user.getLastName() != null) {
+			existing.setLastName(user.getLastName());
+		}
+
+		Contact incoming = user.getContactData();
+		if (incoming != null || !partial) {
+			Contact contact = existing.getContactData();
+			if (contact == null) {
+				contact = new Contact();
+				existing.setContactData(contact);
+			}
+			Contact source = incoming != null ? incoming : new Contact();
+			// Copy into the existing row instead of replacing it, so no orphaned contact rows are left behind
+			if (!partial || source.getMobile() != null) {
+				contact.setMobile(source.getMobile());
+			}
+			if (!partial || source.getStreet() != null) {
+				contact.setStreet(source.getStreet());
+			}
+			if (!partial || source.getZipcode() != null) {
+				contact.setZipcode(source.getZipcode());
+			}
+			if (!partial || source.getCountry() != null) {
+				contact.setCountry(source.getCountry());
+			}
+		}
 		return userDAO.updateUser(existing);
 	}
 

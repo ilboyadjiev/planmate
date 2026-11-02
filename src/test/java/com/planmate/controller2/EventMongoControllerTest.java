@@ -13,21 +13,29 @@ import static org.mockito.Mockito.when;
 
 import java.security.Principal;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.planmate.dto.Friendship;
+import com.planmate.dto.User;
 import com.planmate.dto2.EventDoc;
 import com.planmate.service.EventMongoService;
+import com.planmate.service.FriendshipService;
+import com.planmate.service.UserService;
 
 class EventMongoControllerTest {
 
-	private static final String ALICE = "alice@example.com";
-	private static final String BOB = "bob@example.com";
+	private static final String ALICE = "alice@example.com"; // user id 1
+	private static final String BOB = "bob@example.com"; // user id 2, accepted friend of Alice
+	private static final String CAROL = "carol@example.com"; // user id 3, not a friend of Alice
 	private static final String GUEST = "guest_abcdefghij0123456789";
 	private static final Instant START = Instant.parse("2026-11-01T00:00:00Z");
 	private static final Instant END = Instant.parse("2026-12-01T00:00:00Z");
@@ -39,11 +47,19 @@ class EventMongoControllerTest {
 		return () -> email;
 	}
 
-	private static EventDoc event(String id, String creatorId, boolean isPublic) {
+	private static User account(long id, String email) {
+		User u = new User();
+		u.setId(id);
+		u.setEmail(email);
+		return u;
+	}
+
+	private static EventDoc event(String id, String creatorId, boolean isPublic, String... participantIds) {
 		EventDoc e = new EventDoc();
 		e.setId(id);
 		e.setCreatorId(creatorId);
 		e.setIsPublic(isPublic);
+		e.setParticipantIds(new java.util.ArrayList<>(Arrays.asList(participantIds)));
 		return e;
 	}
 
@@ -54,7 +70,22 @@ class EventMongoControllerTest {
 	@BeforeEach
 	void setUp() {
 		service = mock(EventMongoService.class);
-		controller = new EventMongoController(service);
+		UserService userService = mock(UserService.class);
+		FriendshipService friendshipService = mock(FriendshipService.class);
+		controller = new EventMongoController(service, userService, friendshipService);
+
+		User alice = account(1, ALICE);
+		User bob = account(2, BOB);
+		when(userService.getUserByEmail(ALICE)).thenReturn(alice);
+		when(userService.getUserByEmail(BOB)).thenReturn(bob);
+		when(userService.getUserByEmail(CAROL)).thenReturn(account(3, CAROL));
+
+		Friendship aliceBob = new Friendship();
+		aliceBob.setUserA(alice);
+		aliceBob.setUserB(bob);
+		aliceBob.setStatus("accepted");
+		when(friendshipService.getFriendshipList(ALICE)).thenReturn(Collections.singletonList(aliceBob));
+
 		when(service.createEvent(any())).thenAnswer(inv -> inv.getArgument(0));
 	}
 
@@ -80,16 +111,34 @@ class EventMongoControllerTest {
 	}
 
 	@Test
-	void rangeForLoggedInUserIgnoresCreatorIdParam() {
+	void participantsMustBeAcceptedFriends() {
+		controller.createEvent(event(null, null, false, "2", "2"), user(ALICE));
+		ArgumentCaptor<EventDoc> saved = ArgumentCaptor.forClass(EventDoc.class);
+		verify(service).createEvent(saved.capture());
+		assertEquals(Collections.singletonList("2"), saved.getValue().getParticipantIds()); // de-duplicated
+
+		assertEquals(HttpStatus.BAD_REQUEST, statusOf(() -> controller.createEvent(event(null, null, false, "3"), user(ALICE))));
+		assertEquals(HttpStatus.BAD_REQUEST, statusOf(() -> controller.createEvent(event(null, GUEST, false, "2"), null)));
+	}
+
+	@Test
+	void rangeForLoggedInUserIncludesInvitationsAndIgnoresCreatorIdParam() {
 		controller.getEventsByRange(BOB, START, END, user(ALICE));
 
-		verify(service).getEventsByCreatorAndRange(ALICE, START, END);
+		verify(service).getVisibleEventsInRange(ALICE, "1", START, END);
+	}
+
+	@Test
+	void rangeForGuestOnlyCoversOwnEvents() {
+		controller.getEventsByRange(GUEST, START, END, null);
+
+		verify(service).getVisibleEventsInRange(GUEST, null, START, END);
 	}
 
 	@Test
 	void rangeAnonymousCannotReadAUsersCalendar() {
 		assertEquals(HttpStatus.UNAUTHORIZED, statusOf(() -> controller.getEventsByRange(ALICE, START, END, null)));
-		verify(service, never()).getEventsByCreatorAndRange(anyString(), any(), any());
+		verify(service, never()).getVisibleEventsInRange(anyString(), any(), any(), any());
 	}
 
 	@Test
@@ -106,14 +155,38 @@ class EventMongoControllerTest {
 	}
 
 	@Test
+	void participantCanViewButNotChangeTheEvent() {
+		when(service.getEventById("e1")).thenReturn(event("e1", ALICE, false, "2"));
+
+		assertEquals(HttpStatus.OK, controller.getEventById("e1", null, user(BOB)).getStatusCode());
+		assertEquals(HttpStatus.NOT_FOUND, statusOf(() -> controller.updateEvent("e1", event(null, null, false, "2"), user(BOB))));
+		assertEquals(HttpStatus.NOT_FOUND, statusOf(() -> controller.deleteEvent("e1", null, user(BOB))));
+		// Someone who is not invited cannot view it
+		assertEquals(HttpStatus.NOT_FOUND, statusOf(() -> controller.getEventById("e1", null, user(CAROL))));
+
+		verify(service, never()).updateEvent(anyString(), any());
+		verify(service, never()).deleteEvent(anyString());
+	}
+
+	@Test
 	void ownerCanUpdateAndDelete() {
 		when(service.getEventById("e1")).thenReturn(event("e1", ALICE, false));
 
-		controller.updateEvent("e1", event(null, null, false), user(ALICE));
+		controller.updateEvent("e1", event(null, null, false, "2"), user(ALICE));
 		controller.deleteEvent("e1", null, user(ALICE));
 
-		verify(service).updateEvent(eq("e1"), any());
+		ArgumentCaptor<EventDoc> updated = ArgumentCaptor.forClass(EventDoc.class);
+		verify(service).updateEvent(eq("e1"), updated.capture());
+		assertEquals(Collections.singletonList("2"), updated.getValue().getParticipantIds());
 		verify(service).deleteEvent("e1");
+	}
+
+	@Test
+	void ownerCannotInviteNonFriendsOnUpdate() {
+		when(service.getEventById("e1")).thenReturn(event("e1", ALICE, false));
+
+		assertEquals(HttpStatus.BAD_REQUEST, statusOf(() -> controller.updateEvent("e1", event(null, null, false, "3"), user(ALICE))));
+		verify(service, never()).updateEvent(anyString(), any());
 	}
 
 	@Test
@@ -126,7 +199,7 @@ class EventMongoControllerTest {
 	}
 
 	@Test
-	void privateEventsAreOnlyVisibleToTheirOwner() {
+	void privateEventsAreOnlyVisibleToOwnerAndParticipants() {
 		when(service.getEventById("private")).thenReturn(event("private", BOB, false));
 		when(service.getEventById("public")).thenReturn(event("public", BOB, true));
 
@@ -156,11 +229,11 @@ class EventMongoControllerTest {
 
 	@Test
 	void feedPageSizeIsCapped() {
-		when(service.getEventsByTag(anyString(), any())).thenReturn(new org.springframework.data.domain.PageImpl<>(Collections.emptyList()));
+		when(service.getEventsByTag(anyString(), any())).thenReturn(new PageImpl<>(Collections.<EventDoc>emptyList()));
 
 		controller.getFeedEvents("#munich", 0, 100000);
 
-		ArgumentCaptor<org.springframework.data.domain.Pageable> paging = ArgumentCaptor.forClass(org.springframework.data.domain.Pageable.class);
+		ArgumentCaptor<Pageable> paging = ArgumentCaptor.forClass(Pageable.class);
 		verify(service).getEventsByTag(eq("#munich"), paging.capture());
 		assertEquals(50, paging.getValue().getPageSize());
 	}

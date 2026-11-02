@@ -51,6 +51,8 @@ public class EventMongoService {
 		existing.setStartTime(updatedData.getStartTime());
 		existing.setEndTime(updatedData.getEndTime());
 		existing.setTags(updatedData.getTags());
+		existing.setLocation(updatedData.getLocation());
+		existing.setParticipantIds(updatedData.getParticipantIds());
 		return repository.save(existing);
 	}
 
@@ -61,6 +63,14 @@ public class EventMongoService {
 	public List<EventDoc> getEventsByCreatorAndRange(String creatorId, Instant start, Instant end) {
         return repository.findByCreatorIdAndStartTimeBetween(creatorId, start, end);
     }
+
+	/** Events the owner created plus, if participantId is given, events they were invited to. */
+	public List<EventDoc> getVisibleEventsInRange(String owner, String participantId, Instant start, Instant end) {
+		if (participantId == null) {
+			return getEventsByCreatorAndRange(owner, start, end);
+		}
+		return repository.findCreatedOrParticipatingInRange(owner, participantId, start, end);
+	}
 	
 	public List<EventDoc> getEventsByTag(String tag) {
         return repository.findByTagsInAndIsPublicTrue(Collections.singletonList(tag));

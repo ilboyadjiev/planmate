@@ -16,7 +16,12 @@ public interface UserService {
 
 	User createUser(User user);
 
-	User updateUser(Long id, User user);
+	/**
+	 * Updates the editable profile fields (first/last name and contact data). Email, username, password and role
+	 * are never changed here. With partial=true, null fields in the request leave the stored value untouched.
+	 * Returns null if the user does not exist.
+	 */
+	User updateUser(Long id, User user, boolean partial);
 	
 	Boolean checkEmailAvailable(String emailToCheck);
 

@@ -81,7 +81,10 @@ public class UserController {
 			return new ResponseEntity<>(HttpStatus.FORBIDDEN);
 		}
 		try {
-			User updatedUser = userService.updateUser(id, user);
+			User updatedUser = userService.updateUser(id, user, false);
+			if (updatedUser == null) {
+				return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+			}
 			return new ResponseEntity<>(updatedUser, HttpStatus.OK);
 		} catch (RuntimeException e) {
 			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
@@ -95,7 +98,10 @@ public class UserController {
 			return new ResponseEntity<>(HttpStatus.FORBIDDEN);
 		}
 		try {
-			User patchedUser = userService.updateUser(id, user);
+			User patchedUser = userService.updateUser(id, user, true);
+			if (patchedUser == null) {
+				return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+			}
 			return new ResponseEntity<>(patchedUser, HttpStatus.OK);
 		} catch (RuntimeException e) {
 			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
