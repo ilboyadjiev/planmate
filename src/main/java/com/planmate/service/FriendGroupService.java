@@ -1,6 +1,8 @@
 package com.planmate.service;
 
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +26,8 @@ import com.planmate.util.ConstantsUtil;
  * Friend groups. There is no owner; the rules are the same for every member:
  * - any member can rename the group, add members and remove members,
  * - you can only add your own accepted friends,
- * - anyone can leave, and a group without members is deleted.
+ * - anyone can leave, and a group without members is deleted,
+ * - people added to a group are invited to the group's upcoming events (not to past or ongoing ones).
  * Non-members cannot see a group at all (404, so group ids cannot be probed).
  */
 @Service
@@ -36,11 +39,14 @@ public class FriendGroupService {
 	private final FriendGroupDao groupDao;
 	private final UserService userService;
 	private final FriendshipService friendshipService;
+	private final EventMongoService eventService;
 
-	public FriendGroupService(FriendGroupDao groupDao, UserService userService, FriendshipService friendshipService) {
+	public FriendGroupService(FriendGroupDao groupDao, UserService userService, FriendshipService friendshipService,
+			EventMongoService eventService) {
 		this.groupDao = groupDao;
 		this.userService = userService;
 		this.friendshipService = friendshipService;
+		this.eventService = eventService;
 	}
 
 	public List<FriendGroup> groupsOf(String email) {
@@ -66,8 +72,13 @@ public class FriendGroupService {
 	public FriendGroup addMembers(String email, Long groupId, Collection<Long> userIds) {
 		User me = me(email);
 		FriendGroup group = groupOfMember(groupId, me);
-		addFriends(group, me, userIds);
-		return groupDao.save(group);
+		List<User> added = addFriends(group, me, userIds);
+		FriendGroup saved = groupDao.save(group);
+		Instant now = Instant.now();
+		for (User user : added) {
+			eventService.inviteToUpcomingGroupEvents(group.getId(), String.valueOf(user.getId()), user.getEmail(), now);
+		}
+		return saved;
 	}
 
 	/** Removes a member, or the caller themselves (leaving). Returns null when the group was deleted. */
@@ -96,9 +107,10 @@ public class FriendGroupService {
 		}
 	}
 
-	private void addFriends(FriendGroup group, User me, Collection<Long> userIds) {
+	/** Adds the given friends of mine to the group and returns the people who were actually new. */
+	private List<User> addFriends(FriendGroup group, User me, Collection<Long> userIds) {
 		if (userIds == null || userIds.isEmpty()) {
-			return;
+			return new ArrayList<>();
 		}
 		Map<Long, User> friends = acceptedFriends(me);
 		List<Long> wanted = userIds.stream().filter(Objects::nonNull).distinct()
@@ -110,7 +122,9 @@ public class FriendGroupService {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
 					"A group can have at most " + MAX_MEMBERS + " members.");
 		}
-		wanted.forEach(id -> group.getMembers().add(friends.get(id)));
+		List<User> added = wanted.stream().map(friends::get).collect(Collectors.toList());
+		group.getMembers().addAll(added);
+		return added;
 	}
 
 	private Map<Long, User> acceptedFriends(User me) {

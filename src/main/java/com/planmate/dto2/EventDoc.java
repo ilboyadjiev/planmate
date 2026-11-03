@@ -27,6 +27,11 @@ public class EventDoc {
 	private String creatorId;
 
 	private List<String> participantIds = new ArrayList<>();
+	/**
+	 * Friend groups (Postgres friend_group ids, as strings) invited as a whole. Their members were added to
+	 * participantIds when the event was saved; this keeps which groups were invited, e.g. for the Discover feed.
+	 */
+	private List<String> groupIds = new ArrayList<>();
 	/** User ids (as strings) of people who joined this public event from the feed. */
 	private List<String> attendeeIds = new ArrayList<>();
 	/**
@@ -102,6 +107,14 @@ public class EventDoc {
 
 	public void setParticipantIds(List<String> participantIds) {
 		this.participantIds = participantIds;
+	}
+
+	public List<String> getGroupIds() {
+		return groupIds;
+	}
+
+	public void setGroupIds(List<String> groupIds) {
+		this.groupIds = groupIds;
 	}
 
 	public List<String> getAttendeeIds() {

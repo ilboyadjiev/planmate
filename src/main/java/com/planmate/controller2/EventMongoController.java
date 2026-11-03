@@ -27,12 +27,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.planmate.dto.FriendGroup;
 import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
 import com.planmate.dto2.EventDoc;
 import com.planmate.dto2.FeedEvent;
 import com.planmate.service.EventMongoService;
 import com.planmate.service.FeedService;
+import com.planmate.service.FriendGroupService;
 import com.planmate.service.FriendshipService;
 import com.planmate.service.UserService;
 import com.planmate.util.ConstantsUtil;
@@ -63,13 +65,15 @@ public class EventMongoController {
 	private final UserService userService;
 	private final FriendshipService friendshipService;
 	private final FeedService feedService;
+	private final FriendGroupService friendGroupService;
 
 	public EventMongoController(EventMongoService eventService, UserService userService,
-			FriendshipService friendshipService, FeedService feedService) {
+			FriendshipService friendshipService, FeedService feedService, FriendGroupService friendGroupService) {
 		this.eventService = eventService;
 		this.userService = userService;
 		this.friendshipService = friendshipService;
 		this.feedService = feedService;
+		this.friendGroupService = friendGroupService;
 	}
 
 	/** The logged-in caller's user id; 401 for guests. */
@@ -93,6 +97,7 @@ public class EventMongoController {
 			event.setCreatorId(null);
 			event.setParticipantIds(new ArrayList<>());
 			event.setResponses(new HashMap<>());
+			event.setGroupIds(new ArrayList<>());
 		}
 		return event;
 	}
@@ -116,30 +121,56 @@ public class EventMongoController {
 	}
 
 	/**
-	 * Participants must be accepted friends of the creator; guests cannot invite anyone.
+	 * Works out who an event invites. Participants must be accepted friends of the creator, or members of a friend
+	 * group the creator invites (you share the group with them). Inviting a group invites all its members, so the
+	 * server adds them here. Guests cannot invite anyone.
 	 * Rejects the request instead of silently dropping ids, so the client never believes it invited someone.
+	 * Sets participantIds and groupIds on the event.
 	 */
-	private List<String> validatedParticipants(List<String> requested, Principal principal) {
-		Set<String> ids = requested == null ? Collections.emptySet()
-				: requested.stream().filter(Objects::nonNull).map(String::trim).filter(id -> !id.isEmpty())
-						.collect(Collectors.toCollection(LinkedHashSet::new));
-		if (ids.isEmpty()) {
-			return new ArrayList<>();
+	private void applyInvitations(EventDoc event, Principal principal) {
+		Set<String> ids = cleanIds(event.getParticipantIds());
+		Set<String> groupIds = cleanIds(event.getGroupIds());
+		if (ids.isEmpty() && groupIds.isEmpty()) {
+			event.setParticipantIds(new ArrayList<>());
+			event.setGroupIds(new ArrayList<>());
+			return;
 		}
 		if (principal == null) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Guests cannot invite participants.");
 		}
 		String me = principal.getName();
-		Set<String> friendIds = friendshipService.getFriendshipList(me).stream()
+		String myId = participantKey(principal);
+
+		Map<String, FriendGroup> myGroups = friendGroupService.groupsOf(me).stream()
+				.collect(Collectors.toMap(g -> String.valueOf(g.getId()), g -> g));
+		if (!myGroups.keySet().containsAll(groupIds)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You can only invite groups you are in.");
+		}
+		Set<String> groupMembers = groupIds.stream()
+				.flatMap(id -> myGroups.get(id).getMembers().stream())
+				.map(u -> String.valueOf(u.getId()))
+				.filter(id -> !id.equals(myId))
+				.collect(Collectors.toCollection(LinkedHashSet::new));
+
+		Set<String> allowed = friendshipService.getFriendshipList(me).stream()
 				.filter(f -> ConstantsUtil.FRIENDSHIP_STATUS_ACCEPTED.equalsIgnoreCase(f.getStatus()))
 				.map(f -> otherUser(f, me))
 				.filter(u -> u != null && u.getId() != null)
 				.map(u -> String.valueOf(u.getId()))
 				.collect(Collectors.toSet());
-		if (!friendIds.containsAll(ids)) {
+		allowed.addAll(groupMembers);
+		if (!allowed.containsAll(ids)) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Participants must be your friends.");
 		}
-		return new ArrayList<>(ids);
+		ids.addAll(groupMembers);
+		event.setParticipantIds(new ArrayList<>(ids));
+		event.setGroupIds(new ArrayList<>(groupIds));
+	}
+
+	private static Set<String> cleanIds(List<String> requested) {
+		return requested == null ? new LinkedHashSet<>()
+				: requested.stream().filter(Objects::nonNull).map(String::trim).filter(id -> !id.isEmpty())
+						.collect(Collectors.toCollection(LinkedHashSet::new));
 	}
 
 	private static User otherUser(Friendship friendship, String myEmail) {
@@ -183,7 +214,7 @@ public class EventMongoController {
 	@PostMapping
 	public ResponseEntity<EventDoc> createEvent(@RequestBody EventDoc event, Principal principal) {
 		event.setCreatorId(resolveOwner(principal, event.getCreatorId()));
-		event.setParticipantIds(validatedParticipants(event.getParticipantIds(), principal));
+		applyInvitations(event, principal);
 		// Never let the client choose the id: save() with an existing id would overwrite someone else's event
 		event.setId(null);
 		event.setAttendeeIds(new ArrayList<>());
@@ -215,7 +246,7 @@ public class EventMongoController {
 			Principal principal) {
 		// Creator only: participants get 404 here just like strangers, their view is read-only
 		findOwnedEvent(id, resolveOwner(principal, event.getCreatorId()));
-		event.setParticipantIds(validatedParticipants(event.getParticipantIds(), principal));
+		applyInvitations(event, principal);
 		return ResponseEntity.ok(eventService.updateEvent(id, event));
 	}
 

@@ -45,6 +45,7 @@ public class EventMongoService {
 		existing.setTags(updatedData.getTags());
 		existing.setLocation(updatedData.getLocation());
 		existing.setParticipantIds(updatedData.getParticipantIds());
+		existing.setGroupIds(updatedData.getGroupIds());
 		// Answers are kept for people who are still invited; uninvited people's answers go with them
 		if (existing.getResponses() != null) {
 			existing.getResponses().keySet().retainAll(
@@ -85,6 +86,17 @@ public class EventMongoService {
 	public void removeAttendee(String eventId, String userId) {
 		mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(eventId)),
 				new Update().pull("attendeeIds", userId), EventDoc.class);
+	}
+
+	/**
+	 * A user joined a friend group: invite them to that group's events that have not started yet. Past and ongoing
+	 * events are left alone, and so are events the user created themselves.
+	 */
+	public void inviteToUpcomingGroupEvents(Long groupId, String userId, String userEmail, Instant now) {
+		Query upcoming = Query.query(Criteria.where("groupIds").is(String.valueOf(groupId))
+				.and("startTime").gt(now)
+				.and("creatorId").ne(userEmail));
+		mongoTemplate.updateMulti(upcoming, new Update().addToSet("participantIds", userId), EventDoc.class);
 	}
 
 	/**

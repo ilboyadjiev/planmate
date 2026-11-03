@@ -25,11 +25,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.planmate.dao.EventMongoRepository;
+import com.planmate.dto.FriendGroup;
 import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
 import com.planmate.dto2.EventDoc;
 import com.planmate.service.EventMongoService;
 import com.planmate.service.FeedService;
+import com.planmate.service.FriendGroupService;
 import com.planmate.service.FriendshipService;
 import com.planmate.service.UserService;
 
@@ -43,6 +45,7 @@ class EventMongoControllerTest {
 	private static final Instant END = Instant.parse("2026-12-01T00:00:00Z");
 
 	private EventMongoService service;
+	private FriendGroupService groupService;
 	private EventMongoController controller;
 
 	private static Principal user(String email) {
@@ -77,7 +80,8 @@ class EventMongoControllerTest {
 		UserService userService = mock(UserService.class);
 		FriendshipService friendshipService = mock(FriendshipService.class);
 		FeedService feedService = new FeedService(mock(EventMongoRepository.class), userService, friendshipService);
-		controller = new EventMongoController(service, userService, friendshipService, feedService);
+		groupService = mock(FriendGroupService.class);
+		controller = new EventMongoController(service, userService, friendshipService, feedService, groupService);
 
 		User alice = account(1, ALICE);
 		User bob = account(2, BOB);
@@ -344,5 +348,63 @@ class EventMongoControllerTest {
 		verify(service).createEvent(saved.capture());
 		assertTrue(saved.getValue().getAttendeeIds().isEmpty());
 		assertTrue(saved.getValue().getResponses().isEmpty());
+	}
+
+	/** "Board games" (id 7): Alice, Bob and Carol. Carol is not Alice's friend, but they share the group. */
+	private void aliceIsInBoardGames() {
+		FriendGroup boardGames = new FriendGroup();
+		boardGames.setId(7L);
+		boardGames.setName("Board games");
+		boardGames.getMembers().addAll(Arrays.asList(account(1, ALICE), account(2, BOB), account(3, CAROL)));
+		when(groupService.groupsOf(ALICE)).thenReturn(Collections.singletonList(boardGames));
+	}
+
+	@Test
+	void invitingAGroupInvitesAllItsMembersAndRemembersTheGroup() {
+		aliceIsInBoardGames();
+		EventDoc dixit = event(null, null, false);
+		dixit.setGroupIds(new ArrayList<>(Arrays.asList("7")));
+
+		controller.createEvent(dixit, user(ALICE));
+
+		ArgumentCaptor<EventDoc> saved = ArgumentCaptor.forClass(EventDoc.class);
+		verify(service).createEvent(saved.capture());
+		assertEquals(Arrays.asList("2", "3"), saved.getValue().getParticipantIds()); // never Alice herself
+		assertEquals(Arrays.asList("7"), saved.getValue().getGroupIds());
+	}
+
+	@Test
+	void fellowGroupMembersCanOnlyBeInvitedTogetherWithTheGroup() {
+		aliceIsInBoardGames();
+
+		// Carol alone: not a friend
+		assertEquals(HttpStatus.BAD_REQUEST, statusOf(() -> controller.createEvent(event(null, null, false, "3"), user(ALICE))));
+
+		EventDoc withGroup = event(null, null, false, "3");
+		withGroup.setGroupIds(new ArrayList<>(Arrays.asList("7")));
+		controller.createEvent(withGroup, user(ALICE));
+		verify(service).createEvent(any());
+	}
+
+	@Test
+	void onlyGroupsYouAreInCanBeInvited() {
+		aliceIsInBoardGames();
+		EventDoc foreign = event(null, null, false);
+		foreign.setGroupIds(new ArrayList<>(Arrays.asList("8")));
+		EventDoc guest = event(null, GUEST, false);
+		guest.setGroupIds(new ArrayList<>(Arrays.asList("7")));
+
+		assertEquals(HttpStatus.BAD_REQUEST, statusOf(() -> controller.createEvent(foreign, user(ALICE))));
+		assertEquals(HttpStatus.BAD_REQUEST, statusOf(() -> controller.createEvent(guest, null)));
+		verify(service, never()).createEvent(any());
+	}
+
+	@Test
+	void strangersNeverSeeWhichGroupsWereInvited() {
+		EventDoc party = attended("party", BOB, "1");
+		party.setGroupIds(new ArrayList<>(Arrays.asList("7")));
+		when(service.getEventById("party")).thenReturn(party);
+
+		assertTrue(controller.getEventById("party", null, user(CAROL)).getBody().getGroupIds().isEmpty());
 	}
 }

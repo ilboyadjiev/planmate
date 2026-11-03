@@ -42,6 +42,28 @@ class FriendGroupServiceTest {
 	private UserService users;
 	@Autowired
 	private FriendshipService friendships;
+	@Autowired
+	private com.planmate.dao.EventMongoRepository events;
+
+	private final List<com.planmate.dto2.EventDoc> createdEvents = new ArrayList<>();
+
+	private com.planmate.dto2.EventDoc groupEvent(String title, User creator, FriendGroup group, java.time.Instant start,
+			User... participants) {
+		com.planmate.dto2.EventDoc e = new com.planmate.dto2.EventDoc();
+		e.setTitle(title);
+		e.setCreatorId(creator.getEmail());
+		e.setStartTime(start);
+		e.setEndTime(start.plusSeconds(7200));
+		e.setGroupIds(new ArrayList<>(Arrays.asList(String.valueOf(group.getId()))));
+		e.setParticipantIds(Arrays.stream(participants).map(u -> String.valueOf(u.getId())).collect(Collectors.toList()));
+		com.planmate.dto2.EventDoc saved = events.save(e);
+		createdEvents.add(saved);
+		return saved;
+	}
+
+	private List<String> participantsOf(com.planmate.dto2.EventDoc event) {
+		return events.findById(event.getId()).get().getParticipantIds();
+	}
 
 	private User alice;
 	private User bob;
@@ -86,6 +108,7 @@ class FriendGroupServiceTest {
 
 	@AfterEach
 	void cleanUp() {
+		events.deleteAll(createdEvents);
 		for (User u : created) {
 			groups.removeFromAllGroups(u.getId());
 			users.deleteUser(u);
@@ -148,5 +171,31 @@ class FriendGroupServiceTest {
 
 		assertEquals(Set.of("alice", "bob"), names(groups.groupsOf(alice.getEmail()).get(0)));
 		assertEquals(group.getId(), groups.groupsOf(bob.getEmail()).get(0).getId());
+	}
+
+	@Test
+	void newMembersAreInvitedToUpcomingGroupEventsOnly() {
+		FriendGroup group = groups.create(alice.getEmail(), "Board games", Arrays.asList(bob.getId()));
+		java.time.Instant now = java.time.Instant.now();
+		com.planmate.dto2.EventDoc nextWeek = groupEvent("Dixit", alice, group, now.plusSeconds(7 * 86400), bob);
+		com.planmate.dto2.EventDoc lastWeek = groupEvent("Catan", alice, group, now.minusSeconds(7 * 86400), bob);
+		com.planmate.dto2.EventDoc ongoing = groupEvent("Chess", alice, group, now.minusSeconds(600), bob);
+		com.planmate.dto2.EventDoc otherGroup = groupEvent("Football", alice, groups.create(alice.getEmail(), "Sports", null),
+				now.plusSeconds(86400));
+		com.planmate.dto2.EventDoc davesOwn = groupEvent("Dave's game", dave, group, now.plusSeconds(86400));
+
+		// Dave is Bob's friend, so Bob can add him
+		groups.addMembers(bob.getEmail(), group.getId(), Arrays.asList(dave.getId()));
+
+		String daveId = String.valueOf(dave.getId());
+		assertTrue(participantsOf(nextWeek).contains(daveId));
+		assertEquals(Arrays.asList(String.valueOf(bob.getId())), participantsOf(lastWeek));
+		assertEquals(Arrays.asList(String.valueOf(bob.getId())), participantsOf(ongoing));
+		assertTrue(participantsOf(otherGroup).isEmpty());
+		assertTrue(participantsOf(davesOwn).isEmpty()); // never invited to his own event
+
+		// Adding him again does not invite him twice
+		groups.addMembers(alice.getEmail(), group.getId(), Arrays.asList(bob.getId()));
+		assertEquals(2, participantsOf(nextWeek).size());
 	}
 }
