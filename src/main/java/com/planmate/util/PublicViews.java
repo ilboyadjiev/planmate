@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.planmate.dto.FriendGroup;
 import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
 
@@ -52,6 +53,16 @@ public final class PublicViews {
 
 	public static List<Map<String, Object>> friendships(List<Friendship> friendships) {
 		return friendships.stream().map(PublicViews::friendship).collect(Collectors.toList());
+	}
+
+	/** A friend group: its members are shown by name and username only, as they may not all be friends. */
+	public static Map<String, Object> group(FriendGroup group) {
+		Map<String, Object> view = new LinkedHashMap<>();
+		view.put("id", group.getId());
+		view.put("name", group.getName());
+		view.put("createdAt", group.getCreationDate());
+		view.put("members", people(group.getMembers()));
+		return view;
 	}
 
 	private static Map<String, Object> friendView(User user, boolean includeEmail) {

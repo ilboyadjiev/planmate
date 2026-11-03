@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
 import com.planmate.service.EventMongoService;
+import com.planmate.service.FriendGroupService;
 import com.planmate.service.FriendshipService;
 import com.planmate.service.UserService;
 import com.planmate.util.JwtUtil;
@@ -51,6 +52,9 @@ public class UserController {
 
 	@Autowired
 	private EventMongoService eventMongoService;
+
+	@Autowired
+	private FriendGroupService friendGroupService;
 
 	@PostMapping("/register")
 	@Operation(summary = "Create a new user")
@@ -164,6 +168,8 @@ public class UserController {
 		}
 
 		try {
+			// Group memberships reference the user row, so they go first
+			friendGroupService.removeFromAllGroups(targetUser.getId());
 			userService.deleteUser(targetUser);
 			// Calendar data lives in MongoDB: the user's events, and their place on other people's events
 			eventMongoService.removeUserData(targetUser.getEmail(), String.valueOf(targetUser.getId()));
