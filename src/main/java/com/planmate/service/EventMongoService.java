@@ -87,6 +87,18 @@ public class EventMongoService {
 				new Update().pull("attendeeIds", userId), EventDoc.class);
 	}
 
+	/**
+	 * Account deletion: deletes the events the user created and removes them from everyone else's events
+	 * (invitations, answers and feed sign-ups).
+	 */
+	public void removeUserData(String email, String userId) {
+		mongoTemplate.remove(Query.query(Criteria.where("creatorId").is(email)), EventDoc.class);
+		Query involved = Query.query(new Criteria().orOperator(Criteria.where("participantIds").is(userId),
+				Criteria.where("attendeeIds").is(userId), Criteria.where("responses." + userId).exists(true)));
+		mongoTemplate.updateMulti(involved, new Update().pull("participantIds", userId).pull("attendeeIds", userId)
+				.unset("responses." + userId), EventDoc.class);
+	}
+
 	public void mergeGuestEvents(String guestId, String realUserId) {
 		List<EventDoc> guestEvents = repository.findByCreatorId(guestId);
 		if (guestEvents.isEmpty()) {

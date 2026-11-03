@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.planmate.dto.Friendship;
+import com.planmate.util.PublicViews;
 import com.planmate.service.FriendshipService;
 
 @RestController
@@ -22,7 +23,7 @@ public class FriendshipController {
 	public ResponseEntity<?> createNewFriendRequest(@PathVariable Long userBId, Principal principal) {
 		try {
 			Friendship created = friendshipService.createFriendship(principal.getName(), userBId);
-			return new ResponseEntity<>(created, HttpStatus.CREATED);
+			return new ResponseEntity<>(PublicViews.friendship(created), HttpStatus.CREATED);
 		} catch (IllegalArgumentException e) {
 			return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
 		}
@@ -32,7 +33,7 @@ public class FriendshipController {
 	public ResponseEntity<?> acceptFriendRequest(@PathVariable Long friendshipId, Principal principal) {
 		try {
 			Friendship accepted = friendshipService.acceptFriendshipRequest(friendshipId, principal.getName());
-			return new ResponseEntity<>(accepted, HttpStatus.OK);
+			return new ResponseEntity<>(PublicViews.friendship(accepted), HttpStatus.OK);
 		} catch (IllegalArgumentException e) {
 			return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
 		}
@@ -45,7 +46,7 @@ public class FriendshipController {
 			
 			List<Friendship> friendships = friendshipService.getFriendshipList(currentUserEmail);
 			
-			return new ResponseEntity<>(friendships, HttpStatus.OK);
+			return new ResponseEntity<>(PublicViews.friendships(friendships), HttpStatus.OK);
 		} catch (Exception e) {
 			return new ResponseEntity<>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
 		}

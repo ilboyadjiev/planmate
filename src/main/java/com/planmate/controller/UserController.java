@@ -23,9 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
+import com.planmate.service.EventMongoService;
 import com.planmate.service.FriendshipService;
 import com.planmate.service.UserService;
 import com.planmate.util.JwtUtil;
+import com.planmate.util.PublicViews;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -46,6 +48,9 @@ public class UserController {
 
 	@Autowired
 	private FriendshipService friendshipService;
+
+	@Autowired
+	private EventMongoService eventMongoService;
 
 	@PostMapping("/register")
 	@Operation(summary = "Create a new user")
@@ -109,7 +114,7 @@ public class UserController {
 	}
 
 	@GetMapping("/{id}/friends")
-	public ResponseEntity<List<Friendship>> getFriendsListByUserId(@PathVariable Long id, Principal principal) {
+	public ResponseEntity<List<Map<String, Object>>> getFriendsListByUserId(@PathVariable Long id, Principal principal) {
 		if (!isSelf(id, principal)) {
 			return new ResponseEntity<>(HttpStatus.FORBIDDEN);
 		}
@@ -118,11 +123,11 @@ public class UserController {
 			return new ResponseEntity<>(HttpStatus.NOT_FOUND);
 		}
 		List<Friendship> friends = friendshipService.getFriendshipList(user.getEmail());
-		return new ResponseEntity<>(friends, HttpStatus.OK);
+		return new ResponseEntity<>(PublicViews.friendships(friends), HttpStatus.OK);
 	}
 
 	@GetMapping("/search")
-	public ResponseEntity<List<User>> searchUsernames(@RequestParam String term,
+	public ResponseEntity<List<Map<String, Object>>> searchUsernames(@RequestParam String term,
 			@RequestHeader("Authorization") String authorizationHeader) {
 		// Retrieve the currently logged in user
 		String username = "";
@@ -133,8 +138,9 @@ public class UserController {
 			return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 		}
 
+		// Name and username only: search must not reveal anyone's email or contact details
 		List<User> results = userService.searchUsernames(username, term);
-		return new ResponseEntity<>(results, HttpStatus.OK);
+		return new ResponseEntity<>(PublicViews.people(results), HttpStatus.OK);
 	}
 
 	@DeleteMapping("/{id}")
@@ -159,6 +165,8 @@ public class UserController {
 
 		try {
 			userService.deleteUser(targetUser);
+			// Calendar data lives in MongoDB: the user's events, and their place on other people's events
+			eventMongoService.removeUserData(targetUser.getEmail(), String.valueOf(targetUser.getId()));
 			return ResponseEntity.ok(Map.of("message", "Account and all associated data successfully deleted."));
 
 		} catch (Exception e) {

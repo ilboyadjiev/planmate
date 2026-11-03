@@ -125,4 +125,23 @@ class EventMongoRepositoryTest {
 		eventService.updateEvent(dinner.getId(), update);
 		assertEquals(java.util.Map.of("2", "accepted"), repository.findById(dinner.getId()).get().getResponses());
 	}
+
+	@Test
+	void deletingAnAccountRemovesTheirEventsAndTheirPlaceOnOthers() {
+		Instant when = Instant.parse("2026-11-20T19:00:00Z");
+		EventDoc mine = save(PREFIX + "alice's party", ALICE, when);
+		EventDoc invite = save(PREFIX + "bob's dinner", BOB, when, ALICE_ID, "7");
+		invite.getResponses().put(ALICE_ID, "accepted");
+		invite.getResponses().put("7", "maybe");
+		invite.setAttendeeIds(new ArrayList<>(Arrays.asList(ALICE_ID, "8")));
+		repository.save(invite);
+
+		eventService.removeUserData(ALICE, ALICE_ID);
+
+		assertEquals(false, repository.findById(mine.getId()).isPresent());
+		EventDoc after = repository.findById(invite.getId()).get();
+		assertEquals(Arrays.asList("7"), after.getParticipantIds());
+		assertEquals(Arrays.asList("8"), after.getAttendeeIds());
+		assertEquals(java.util.Map.of("7", "maybe"), after.getResponses());
+	}
 }
