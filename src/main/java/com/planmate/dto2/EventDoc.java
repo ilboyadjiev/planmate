@@ -51,6 +51,18 @@ public class EventDoc {
 	/** "host", "invited" or "going": how the viewer relates to the event. */
 	@Transient
 	private String viewerRole;
+	/** The organizer's id, name and username, for invitees (never their email). */
+	@Transient
+	private Map<String, Object> organizer;
+
+	public Map<String, Object> getOrganizer() {
+		return organizer;
+	}
+
+	public void setOrganizer(Map<String, Object> organizer) {
+		this.organizer = organizer;
+	}
+
 	/** Name and username of everyone invited, for the organizer and invitees (see EventMongoController). */
 	@Transient
 	private List<Map<String, Object>> participantProfiles;

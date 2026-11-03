@@ -470,4 +470,22 @@ class EventMongoControllerTest {
 
 		assertNull(controller.getEventById("party", null, user(CAROL)).getBody().getParticipantProfiles());
 	}
+
+	@Test
+	void inviteesOnlyLearnAboutInvitedGroupsTheyAreIn() {
+		aliceIsInBoardGames(); // group 7: Alice, Bob, Carol
+		EventDoc birthday = event("birthday", CAROL, false, "1", "2");
+		birthday.setGroupIds(new ArrayList<>(Arrays.asList("7", "8")));
+		when(service.getEventById("birthday")).thenReturn(birthday);
+		when(groupService.groupsOf(BOB)).thenReturn(Collections.emptyList());
+
+		EventDoc asAlice = controller.getEventById("birthday", null, user(ALICE)).getBody();
+		assertEquals(Arrays.asList("7"), asAlice.getGroupIds()); // not group 8, which Alice is not in
+		assertEquals("carol", asAlice.getOrganizer().get("username"));
+		assertFalse(asAlice.getOrganizer().containsKey("email"));
+
+		birthday.setGroupIds(new ArrayList<>(Arrays.asList("7", "8")));
+		EventDoc asBob = controller.getEventById("birthday", null, user(BOB)).getBody();
+		assertTrue(asBob.getGroupIds().isEmpty()); // Bob is in neither group (in this test)
+	}
 }

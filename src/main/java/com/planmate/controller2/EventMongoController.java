@@ -111,6 +111,27 @@ public class EventMongoController {
 	 * Adds the name and username of everyone invited, so the organizer and invitees can see who answered what,
 	 * also for people who are not their friends (e.g. invited through a group). Never emails or contact details.
 	 */
+	/**
+	 * An invitee's view: the organizer by name (not email), and only the invited groups the invitee is a member
+	 * of. Other invitees must not even learn that a group exists.
+	 */
+	private EventDoc forInvitee(EventDoc event, String viewerEmail, Map<String, User> hostCache,
+			Map<String, Map<String, Object>> people, Set<String> myGroupIds) {
+		forNonOwner(event, ROLE_INVITED, hostCache);
+		withParticipantNames(event, people);
+		User creator = event.getCreatorId() == null ? null
+				: hostCache.computeIfAbsent(event.getCreatorId(), userService::getUserByEmail);
+		event.setOrganizer(creator == null ? null : PublicViews.person(creator));
+		event.setGroupIds(event.getGroupIds() == null ? new ArrayList<>()
+				: event.getGroupIds().stream().filter(myGroupIds::contains).collect(Collectors.toList()));
+		return event;
+	}
+
+	private Set<String> groupIdsOf(String email) {
+		return email == null ? Collections.emptySet()
+				: friendGroupService.groupsOf(email).stream().map(g -> String.valueOf(g.getId())).collect(Collectors.toSet());
+	}
+
 	private EventDoc withParticipantNames(EventDoc event, Map<String, Map<String, Object>> people) {
 		List<Map<String, Object>> profiles = new ArrayList<>();
 		for (String id : event.getParticipantIds() == null ? Collections.<String>emptyList() : event.getParticipantIds()) {
@@ -262,7 +283,7 @@ public class EventMongoController {
 			return ResponseEntity.ok(withParticipantNames(event, new HashMap<>()));
 		}
 		if (isParticipant(event, principal)) {
-			return ResponseEntity.ok(withParticipantNames(forNonOwner(event, ROLE_INVITED, new HashMap<>()), new HashMap<>()));
+			return ResponseEntity.ok(forInvitee(event, principal.getName(), new HashMap<>(), new HashMap<>(), groupIdsOf(principal.getName())));
 		}
 		if (Boolean.TRUE.equals(event.getIsPublic())) {
 			String role = contains(event.getAttendeeIds(), participantKey(principal)) ? ROLE_GOING : null;
@@ -301,13 +322,17 @@ public class EventMongoController {
 		String myId = participantKey(principal);
 		Map<String, User> hostCache = new HashMap<>();
 		Map<String, Map<String, Object>> people = new HashMap<>();
+		Set<String> myGroupIds = null; // looked up once, only if there are invitations
 		List<EventDoc> events = eventService.getVisibleEventsInRange(owner, myId, start, end);
 		for (EventDoc event : events) {
 			if (owner.equals(event.getCreatorId())) {
 				event.setViewerRole(ROLE_HOST);
 				withParticipantNames(event, people);
 			} else if (contains(event.getParticipantIds(), myId)) {
-				withParticipantNames(forNonOwner(event, ROLE_INVITED, hostCache), people);
+				if (myGroupIds == null) {
+					myGroupIds = groupIdsOf(principal == null ? null : principal.getName());
+				}
+				forInvitee(event, principal == null ? null : principal.getName(), hostCache, people, myGroupIds);
 			} else {
 				forNonOwner(event, ROLE_GOING, hostCache);
 			}
@@ -354,7 +379,8 @@ public class EventMongoController {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found.");
 		}
 		eventService.setResponse(id, myId, response);
-		return ResponseEntity.ok(withParticipantNames(forNonOwner(findEvent(id), ROLE_INVITED, new HashMap<>()), new HashMap<>()));
+		return ResponseEntity.ok(forInvitee(findEvent(id), principal.getName(), new HashMap<>(), new HashMap<>(),
+				groupIdsOf(principal.getName())));
 	}
 
 	/** Join a public event from the feed. It then shows in the caller's calendar, read-only. */
