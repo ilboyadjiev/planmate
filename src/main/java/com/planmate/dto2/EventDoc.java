@@ -40,6 +40,8 @@ public class EventDoc {
 	 */
 	private Map<String, String> responses = new HashMap<>();
 	private List<String> tags = new ArrayList<>();
+	/** The city tag the server added automatically (see CityTagService), or null. Also present in tags. */
+	private String cityTag;
 	private EventLocation location;
 	private Boolean isPublic;
 
@@ -49,6 +51,17 @@ public class EventDoc {
 	/** "host", "invited" or "going": how the viewer relates to the event. */
 	@Transient
 	private String viewerRole;
+	/** Name and username of everyone invited, for the organizer and invitees (see EventMongoController). */
+	@Transient
+	private List<Map<String, Object>> participantProfiles;
+
+	public List<Map<String, Object>> getParticipantProfiles() {
+		return participantProfiles;
+	}
+
+	public void setParticipantProfiles(List<Map<String, Object>> participantProfiles) {
+		this.participantProfiles = participantProfiles;
+	}
 
 	public EventDoc() {
 	}
@@ -147,6 +160,14 @@ public class EventDoc {
 
 	public void setViewerRole(String viewerRole) {
 		this.viewerRole = viewerRole;
+	}
+
+	public String getCityTag() {
+		return cityTag;
+	}
+
+	public void setCityTag(String cityTag) {
+		this.cityTag = cityTag;
 	}
 
 	public List<String> getTags() {

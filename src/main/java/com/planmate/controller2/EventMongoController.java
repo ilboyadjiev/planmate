@@ -32,12 +32,14 @@ import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
 import com.planmate.dto2.EventDoc;
 import com.planmate.dto2.FeedEvent;
+import com.planmate.service.CityTagService;
 import com.planmate.service.EventMongoService;
 import com.planmate.service.FeedService;
 import com.planmate.service.FriendGroupService;
 import com.planmate.service.FriendshipService;
 import com.planmate.service.UserService;
 import com.planmate.util.ConstantsUtil;
+import com.planmate.util.PublicViews;
 
 /**
  * Calendar events for both logged-in users and guests.
@@ -66,14 +68,17 @@ public class EventMongoController {
 	private final FriendshipService friendshipService;
 	private final FeedService feedService;
 	private final FriendGroupService friendGroupService;
+	private final CityTagService cityTagService;
 
 	public EventMongoController(EventMongoService eventService, UserService userService,
-			FriendshipService friendshipService, FeedService feedService, FriendGroupService friendGroupService) {
+			FriendshipService friendshipService, FeedService feedService, FriendGroupService friendGroupService,
+			CityTagService cityTagService) {
 		this.eventService = eventService;
 		this.userService = userService;
 		this.friendshipService = friendshipService;
 		this.feedService = feedService;
 		this.friendGroupService = friendGroupService;
+		this.cityTagService = cityTagService;
 	}
 
 	/** The logged-in caller's user id; 401 for guests. */
@@ -100,6 +105,30 @@ public class EventMongoController {
 			event.setGroupIds(new ArrayList<>());
 		}
 		return event;
+	}
+
+	/**
+	 * Adds the name and username of everyone invited, so the organizer and invitees can see who answered what,
+	 * also for people who are not their friends (e.g. invited through a group). Never emails or contact details.
+	 */
+	private EventDoc withParticipantNames(EventDoc event, Map<String, Map<String, Object>> people) {
+		List<Map<String, Object>> profiles = new ArrayList<>();
+		for (String id : event.getParticipantIds() == null ? Collections.<String>emptyList() : event.getParticipantIds()) {
+			Map<String, Object> person = people.computeIfAbsent(id, this::publicProfile);
+			if (person != null) {
+				profiles.add(person);
+			}
+		}
+		event.setParticipantProfiles(profiles);
+		return event;
+	}
+
+	private Map<String, Object> publicProfile(String userId) {
+		try {
+			return PublicViews.person(userService.getUserById(Long.valueOf(userId)));
+		} catch (NumberFormatException e) {
+			return null;
+		}
 	}
 
 	private static boolean contains(List<String> ids, String id) {
@@ -219,6 +248,7 @@ public class EventMongoController {
 		event.setId(null);
 		event.setAttendeeIds(new ArrayList<>());
 		event.setResponses(new HashMap<>());
+		cityTagService.apply(event, null);
 		return new ResponseEntity<>(eventService.createEvent(event), HttpStatus.CREATED);
 	}
 
@@ -229,10 +259,10 @@ public class EventMongoController {
 		String caller = principal != null ? principal.getName() : guestId;
 		if (caller != null && caller.equals(event.getCreatorId())) {
 			event.setViewerRole(ROLE_HOST);
-			return ResponseEntity.ok(event);
+			return ResponseEntity.ok(withParticipantNames(event, new HashMap<>()));
 		}
 		if (isParticipant(event, principal)) {
-			return ResponseEntity.ok(forNonOwner(event, ROLE_INVITED, new HashMap<>()));
+			return ResponseEntity.ok(withParticipantNames(forNonOwner(event, ROLE_INVITED, new HashMap<>()), new HashMap<>()));
 		}
 		if (Boolean.TRUE.equals(event.getIsPublic())) {
 			String role = contains(event.getAttendeeIds(), participantKey(principal)) ? ROLE_GOING : null;
@@ -245,8 +275,9 @@ public class EventMongoController {
 	public ResponseEntity<EventDoc> updateEvent(@PathVariable String id, @RequestBody EventDoc event,
 			Principal principal) {
 		// Creator only: participants get 404 here just like strangers, their view is read-only
-		findOwnedEvent(id, resolveOwner(principal, event.getCreatorId()));
+		EventDoc existing = findOwnedEvent(id, resolveOwner(principal, event.getCreatorId()));
 		applyInvitations(event, principal);
+		cityTagService.apply(event, existing.getCityTag());
 		return ResponseEntity.ok(eventService.updateEvent(id, event));
 	}
 
@@ -269,12 +300,16 @@ public class EventMongoController {
 		String owner = resolveOwner(principal, creatorId);
 		String myId = participantKey(principal);
 		Map<String, User> hostCache = new HashMap<>();
+		Map<String, Map<String, Object>> people = new HashMap<>();
 		List<EventDoc> events = eventService.getVisibleEventsInRange(owner, myId, start, end);
 		for (EventDoc event : events) {
 			if (owner.equals(event.getCreatorId())) {
 				event.setViewerRole(ROLE_HOST);
+				withParticipantNames(event, people);
+			} else if (contains(event.getParticipantIds(), myId)) {
+				withParticipantNames(forNonOwner(event, ROLE_INVITED, hostCache), people);
 			} else {
-				forNonOwner(event, contains(event.getParticipantIds(), myId) ? ROLE_INVITED : ROLE_GOING, hostCache);
+				forNonOwner(event, ROLE_GOING, hostCache);
 			}
 		}
 		return ResponseEntity.ok(events);
@@ -283,11 +318,12 @@ public class EventMongoController {
 	/**
 	 * Upcoming public events ranked for the caller (see FeedService). No tag means "For you": all upcoming public
 	 * events. Guests get the same feed without the friend signals. With group, the feed shows that friend group's
-	 * upcoming events instead (members only).
+	 * upcoming events instead (members only); with nearby=true, public events in the city from the user's profile.
 	 */
 	@GetMapping("/feed")
 	public ResponseEntity<FeedService.FeedPage> getFeedEvents(@RequestParam(required = false) String tag,
-			@RequestParam(required = false) Long group, @RequestParam(defaultValue = "0") int page,
+			@RequestParam(required = false) Long group, @RequestParam(defaultValue = "false") boolean nearby,
+			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "5") int size, Principal principal) {
 		String viewer = principal == null ? null : principal.getName();
 		if (group != null) {
@@ -295,6 +331,12 @@ public class EventMongoController {
 				throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
 			}
 			return ResponseEntity.ok(feedService.getGroupFeed(viewer, group, page, size));
+		}
+		if (nearby) {
+			if (viewer == null) {
+				throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+			}
+			return ResponseEntity.ok(feedService.getNearbyFeed(viewer, page, size));
 		}
 		return ResponseEntity.ok(feedService.getFeed(viewer, tag, page, size));
 	}
@@ -312,7 +354,7 @@ public class EventMongoController {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found.");
 		}
 		eventService.setResponse(id, myId, response);
-		return ResponseEntity.ok(forNonOwner(findEvent(id), ROLE_INVITED, new HashMap<>()));
+		return ResponseEntity.ok(withParticipantNames(forNonOwner(findEvent(id), ROLE_INVITED, new HashMap<>()), new HashMap<>()));
 	}
 
 	/** Join a public event from the feed. It then shows in the caller's calendar, read-only. */

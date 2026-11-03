@@ -1,0 +1,108 @@
+# Cities PlanMate recognises in event text, used to tag events with their city (#munich).
+# One city per line: the name that becomes the tag first, then other spellings, separated by "|".
+# Matching ignores case and accents and only matches whole words.
+#
+# Leave out cities whose names are also everyday words, they would tag events wrongly
+# (e.g. Essen = "food" in German, Halle = "hall", Hamm, Nice, Split, Bath, Reading, Mobile).
+
+# Germany
+Munich|München|Muenchen|Muc
+Berlin
+Hamburg
+Cologne|Köln|Koeln
+Frankfurt|Frankfurt am Main
+Stuttgart
+Düsseldorf|Duesseldorf
+Leipzig
+Dortmund
+Bremen
+Dresden
+Hanover|Hannover
+Nuremberg|Nürnberg|Nuernberg
+Duisburg
+Bochum
+Wuppertal
+Bielefeld
+Bonn
+Münster|Muenster
+Karlsruhe
+Mannheim
+Augsburg
+Wiesbaden
+Mönchengladbach|Moenchengladbach
+Freiburg|Freiburg im Breisgau
+Heidelberg
+Regensburg
+Würzburg|Wuerzburg
+Ingolstadt
+Ulm
+Rosenheim
+Erlangen
+Potsdam
+Mainz
+Lübeck|Luebeck
+Rostock
+Kassel
+Darmstadt
+Garmisch-Partenkirchen|Garmisch
+Starnberg
+Landshut
+Passau
+Bamberg
+Bayreuth
+
+# Austria and Switzerland
+Vienna|Wien
+Salzburg
+Graz
+Innsbruck
+Linz
+Zurich|Zürich
+Geneva|Genf|Genève
+Basel
+Bern
+Lucerne|Luzern
+Lausanne
+
+# Europe
+Paris
+London
+Amsterdam
+Brussels|Brüssel|Bruxelles
+Prague|Prag|Praha
+Rome|Rom|Roma
+Milan|Mailand|Milano
+Venice|Venedig|Venezia
+Florence|Florenz|Firenze
+Naples|Neapel|Napoli
+Turin|Torino
+Bologna
+Verona
+Barcelona
+Madrid
+Valencia
+Seville|Sevilla
+Lisbon|Lissabon|Lisboa
+Porto
+Copenhagen|Kopenhagen|København
+Stockholm
+Oslo
+Helsinki
+Dublin
+Edinburgh
+Budapest
+Warsaw|Warschau|Warszawa
+Krakow|Krakau|Kraków
+Ljubljana
+Zagreb
+Athens|Athen
+Istanbul
+
+# World
+New York|New York City|NYC
+San Francisco
+Chicago
+Toronto
+Tokyo
+Sydney
+Dubai

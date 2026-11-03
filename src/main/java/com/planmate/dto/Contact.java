@@ -30,6 +30,17 @@ public class Contact {
 	//@ApiModelProperty(notes = "The country of the address")
 	private String country;
 
+	/** Optional. Also used by the Discover feed's "Around me" view. */
+	private String city;
+
+	public String getCity() {
+		return city;
+	}
+
+	public void setCity(String city) {
+		this.city = city;
+	}
+
 	public Contact() {
 		super();
 	}
@@ -76,7 +87,7 @@ public class Contact {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(country, id, mobile, street, zipcode);
+		return Objects.hash(city, country, id, mobile, street, zipcode);
 	}
 
 	@Override
@@ -88,14 +99,14 @@ public class Contact {
 		if (getClass() != obj.getClass())
 			return false;
 		Contact other = (Contact) obj;
-		return Objects.equals(country, other.country) && Objects.equals(id, other.id)
+		return Objects.equals(city, other.city) && Objects.equals(country, other.country) && Objects.equals(id, other.id)
 				&& Objects.equals(mobile, other.mobile) && Objects.equals(street, other.street)
 				&& Objects.equals(zipcode, other.zipcode);
 	}
 
 	@Override
 	public String toString() {
-		return "Contact [id=" + id + ", mobile=" + mobile + ", street=" + street + ", zipcode=" + zipcode + ", country="
+		return "Contact [id=" + id + ", mobile=" + mobile + ", street=" + street + ", zipcode=" + zipcode + ", city=" + city + ", country="
 				+ country + "]";
 	}
 

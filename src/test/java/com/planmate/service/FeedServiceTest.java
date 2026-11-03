@@ -34,6 +34,7 @@ class FeedServiceTest {
 	private static final String CAROL = "carol@example.com"; // id 3, stranger
 
 	private EventMongoRepository repository;
+	private UserService users;
 	private FriendGroupService groups;
 	private FeedService feed;
 
@@ -70,7 +71,7 @@ class FeedServiceTest {
 	@BeforeEach
 	void setUp() {
 		repository = mock(EventMongoRepository.class);
-		UserService users = mock(UserService.class);
+		users = mock(UserService.class);
 		FriendshipService friendships = mock(FriendshipService.class);
 		groups = mock(FriendGroupService.class);
 		feed = new FeedService(repository, users, friendships, groups);
@@ -241,5 +242,34 @@ class FeedServiceTest {
 		assertTrue(card.isGoing());
 		assertTrue(card.isInvited());
 		assertEquals("accepted", card.getMyResponse());
+	}
+
+	@Test
+	void aroundMeAsksForACityWhenTheProfileHasNone() {
+		FeedService.FeedPage page = feed.getNearbyFeed(ALICE, 0, 10, NOW);
+
+		assertTrue(page.getEvents().isEmpty());
+		assertEquals(null, page.getCity());
+		verify(repository, org.mockito.Mockito.never()).findUpcomingPublicInCity(any(), any(), any(), any(), any());
+	}
+
+	@Test
+	void aroundMeShowsRankedEventsForTheProfileCityUnderAnySpelling() {
+		com.planmate.dto.Contact contact = new com.planmate.dto.Contact();
+		contact.setCity("  München ");
+		users.getUserByEmail(ALICE).setContactData(contact);
+		when(repository.findUpcomingPublicInCity(eq(NOW), any(), any(), eq("#munich"), any()))
+				.thenReturn(Arrays.asList(event("later", CAROL, Duration.ofDays(5)), event("tomorrow", CAROL, Duration.ofDays(1))));
+
+		FeedService.FeedPage page = feed.getNearbyFeed(ALICE, 0, 10, NOW);
+
+		assertEquals("München", page.getCity());
+		assertEquals(Arrays.asList("tomorrow", "later"), ids(page));
+	}
+
+	@Test
+	void cityTagsAreWrittenLikeEventTags() {
+		assertEquals("#munich", FeedService.cityTag("Munich"));
+		assertEquals("#newyork", FeedService.cityTag("New York"));
 	}
 }

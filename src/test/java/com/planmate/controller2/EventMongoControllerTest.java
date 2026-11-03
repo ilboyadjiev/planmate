@@ -1,6 +1,7 @@
 package com.planmate.controller2;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,6 +30,7 @@ import com.planmate.dto.FriendGroup;
 import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
 import com.planmate.dto2.EventDoc;
+import com.planmate.service.CityTagService;
 import com.planmate.service.EventMongoService;
 import com.planmate.service.FeedService;
 import com.planmate.service.FriendGroupService;
@@ -81,13 +83,17 @@ class EventMongoControllerTest {
 		FriendshipService friendshipService = mock(FriendshipService.class);
 		groupService = mock(FriendGroupService.class);
 		FeedService feedService = new FeedService(mock(EventMongoRepository.class), userService, friendshipService, groupService);
-		controller = new EventMongoController(service, userService, friendshipService, feedService, groupService);
+		controller = new EventMongoController(service, userService, friendshipService, feedService, groupService,
+				new CityTagService());
 
 		User alice = account(1, ALICE);
 		User bob = account(2, BOB);
 		when(userService.getUserByEmail(ALICE)).thenReturn(alice);
 		when(userService.getUserByEmail(BOB)).thenReturn(bob);
 		when(userService.getUserByEmail(CAROL)).thenReturn(account(3, CAROL));
+		when(userService.getUserById(1L)).thenReturn(alice);
+		when(userService.getUserById(2L)).thenReturn(bob);
+		when(userService.getUserById(3L)).thenReturn(account(3, CAROL));
 
 		Friendship aliceBob = new Friendship();
 		aliceBob.setUserA(alice);
@@ -406,5 +412,62 @@ class EventMongoControllerTest {
 		when(service.getEventById("party")).thenReturn(party);
 
 		assertTrue(controller.getEventById("party", null, user(CAROL)).getBody().getGroupIds().isEmpty());
+	}
+
+	@Test
+	void eventsAreTaggedWithTheirCityAndTheTagFollowsTheLocation() {
+		EventDoc dixit = event(null, null, false);
+		dixit.setTitle("Dixit at Café Spielwiese");
+		EventDoc.EventLocation munich = new EventDoc.EventLocation();
+		munich.setName("Café Spielwiese");
+		munich.setCity("München");
+		dixit.setLocation(munich);
+		dixit.setTags(new ArrayList<>(Arrays.asList("#boardgames")));
+
+		controller.createEvent(dixit, user(ALICE));
+		assertEquals(Arrays.asList("#boardgames", "#munich"), dixit.getTags());
+		assertEquals("#munich", dixit.getCityTag());
+
+		// Moved to Berlin: the old city tag goes, the new one comes
+		EventDoc existing = event("e1", ALICE, false);
+		existing.setCityTag("#munich");
+		when(service.getEventById("e1")).thenReturn(existing);
+		EventDoc moved = event(null, null, false);
+		moved.setTitle("Dixit");
+		moved.setTags(new ArrayList<>(Arrays.asList("#boardgames", "#munich")));
+		moved.setLocation(new EventDoc.EventLocation());
+		moved.getLocation().setName("Bar in Berlin Mitte");
+		controller.updateEvent("e1", moved, user(ALICE));
+		assertEquals(Arrays.asList("#boardgames", "#berlin"), moved.getTags());
+
+		// The creator removed the city tag by hand: it is not added back
+		existing.setCityTag("#berlin");
+		EventDoc untagged = event(null, null, false);
+		untagged.setTitle("Dixit in Berlin");
+		untagged.setTags(new ArrayList<>(Arrays.asList("#boardgames")));
+		controller.updateEvent("e1", untagged, user(ALICE));
+		assertEquals(Arrays.asList("#boardgames"), untagged.getTags());
+	}
+
+	@Test
+	void organizerAndInviteesGetEveryInviteesNameButNeverTheirEmail() {
+		EventDoc dinner = event("dinner", ALICE, false, "2", "3"); // Carol (3) is not Alice's friend
+		dinner.getResponses().put("3", "declined");
+		when(service.getEventById("dinner")).thenReturn(dinner);
+
+		EventDoc seen = controller.getEventById("dinner", null, user(ALICE)).getBody();
+
+		assertEquals(Arrays.asList("bob", "carol"),
+				seen.getParticipantProfiles().stream().map(p -> p.get("username")).collect(java.util.stream.Collectors.toList()));
+		assertFalse(seen.getParticipantProfiles().toString().contains("@example.com"));
+		assertEquals("declined", seen.getResponses().get("3"));
+	}
+
+	@Test
+	void strangersGetNoInviteeNames() {
+		EventDoc party = attended("party", BOB, "1");
+		when(service.getEventById("party")).thenReturn(party);
+
+		assertNull(controller.getEventById("party", null, user(CAROL)).getBody().getParticipantProfiles());
 	}
 }

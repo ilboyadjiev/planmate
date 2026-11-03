@@ -36,6 +36,16 @@ public interface EventMongoRepository extends MongoRepository<EventDoc, String> 
     org.springframework.data.domain.Page<EventDoc> findUpcomingForGroupMember(String groupId, Instant now,
             String email, String userId, Pageable pageable);
 
+    /**
+     * "Around me": upcoming public events in a city. An event matches when its structured location city equals the
+     * city (cityPattern), its free-text location name mentions the city as a word (namePattern), or it carries the
+     * city as a tag (cityTag, e.g. "#munich"). Both patterns are case-insensitive regular expressions.
+     */
+    @Query("{ 'isPublic': true, 'endTime': { $gt: ?0 }, $or: [ { 'location.city': { $regex: ?1, $options: 'i' } }, "
+            + "{ 'location.name': { $regex: ?2, $options: 'i' } }, { 'tags': ?3 } ] }")
+    List<EventDoc> findUpcomingPublicInCity(Instant now, String cityPattern, String namePattern, String cityTag,
+            Pageable pageable);
+
     /** Same as findUpcomingPublic, limited to one tag (tags are stored normalised: lower case, leading '#'). */
     @Query("{ 'isPublic': true, 'endTime': { $gt: ?0 }, 'tags': ?1 }")
     List<EventDoc> findUpcomingPublicWithTag(Instant now, String tag, Pageable pageable);

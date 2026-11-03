@@ -43,6 +43,7 @@ public class EventMongoService {
 		existing.setStartTime(updatedData.getStartTime());
 		existing.setEndTime(updatedData.getEndTime());
 		existing.setTags(updatedData.getTags());
+		existing.setCityTag(updatedData.getCityTag());
 		existing.setLocation(updatedData.getLocation());
 		existing.setParticipantIds(updatedData.getParticipantIds());
 		existing.setGroupIds(updatedData.getGroupIds());

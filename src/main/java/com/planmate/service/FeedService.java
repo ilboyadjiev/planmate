@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -27,6 +28,7 @@ import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
 import com.planmate.dto2.EventDoc;
 import com.planmate.dto2.FeedEvent;
+import com.planmate.util.CityTags;
 import com.planmate.util.ConstantsUtil;
 
 /**
@@ -54,11 +56,22 @@ public class FeedService {
 		private final List<FeedEvent> events;
 		private final int page;
 		private final boolean hasMore;
+		/** "Around me" only: the city the events are for, or null when the user has no city in their profile. */
+		private final String city;
 
 		FeedPage(List<FeedEvent> events, int page, boolean hasMore) {
+			this(events, page, hasMore, null);
+		}
+
+		FeedPage(List<FeedEvent> events, int page, boolean hasMore, String city) {
 			this.events = events;
 			this.page = page;
 			this.hasMore = hasMore;
+			this.city = city;
+		}
+
+		public String getCity() {
+			return city;
 		}
 
 		public List<FeedEvent> getEvents() {
@@ -142,15 +155,50 @@ public class FeedService {
 	}
 
 	FeedPage getFeed(String viewerEmail, String tag, int page, int size, Instant now) {
+		String normalizedTag = normalizeTag(tag);
+		Pageable candidates = candidates();
+		List<EventDoc> events = normalizedTag == null ? repository.findUpcomingPublic(now, candidates)
+				: repository.findUpcomingPublicWithTag(now, normalizedTag, candidates);
+		return rankedPage(events, viewer(viewerEmail), page, size, now);
+	}
+
+	/**
+	 * "Around me": upcoming public events in the city from the viewer's profile, ranked like "For you".
+	 * Without a city in the profile the page is empty and its city is null, so the app can ask for one.
+	 */
+	public FeedPage getNearbyFeed(String viewerEmail, int page, int size) {
+		return getNearbyFeed(viewerEmail, page, size, Instant.now());
+	}
+
+	FeedPage getNearbyFeed(String viewerEmail, int page, int size, Instant now) {
+		User me = viewerEmail == null ? null : userService.getUserByEmail(viewerEmail);
+		if (me == null) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+		}
+		String city = me.getContactData() == null ? null : StringUtils.normalizeSpace(me.getContactData().getCity());
+		if (StringUtils.isEmpty(city)) {
+			return new FeedPage(Collections.emptyList(), Math.max(0, page), false, null);
+		}
+		String quoted = Pattern.quote(city);
+		List<EventDoc> events = repository.findUpcomingPublicInCity(now, "^" + quoted + "$",
+				"(^|[^\\p{L}])" + quoted + "($|[^\\p{L}])", cityTag(city), candidates());
+		FeedPage ranked = rankedPage(events, viewer(viewerEmail), page, size, now);
+		return new FeedPage(ranked.getEvents(), ranked.getPage(), ranked.isHasMore(), city);
+	}
+
+	/** "New York" becomes "#newyork" and "München" becomes "#munich", like automatic event city tags. */
+	static String cityTag(String city) {
+		return CityTags.forCity(city);
+	}
+
+	private static Pageable candidates() {
+		return PageRequest.of(0, MAX_CANDIDATES, Sort.by("startTime").ascending());
+	}
+
+	private FeedPage rankedPage(List<EventDoc> events, Viewer viewer, int page, int size, Instant now) {
 		int pageSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
 		int pageIndex = Math.max(0, page);
 
-		String normalizedTag = normalizeTag(tag);
-		Pageable candidates = PageRequest.of(0, MAX_CANDIDATES, Sort.by("startTime").ascending());
-		List<EventDoc> events = normalizedTag == null ? repository.findUpcomingPublic(now, candidates)
-				: repository.findUpcomingPublicWithTag(now, normalizedTag, candidates);
-
-		Viewer viewer = viewer(viewerEmail);
 		List<EventDoc> ranked = events.stream()
 				.sorted(Comparator.comparingDouble((EventDoc e) -> -score(e, viewer, now))
 						.thenComparing(EventDoc::getStartTime, Comparator.nullsLast(Comparator.naturalOrder()))

@@ -4,6 +4,7 @@ import java.util.List;
 
 import javax.transaction.Transactional;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -80,6 +81,9 @@ public class UserServiceImpl implements UserService {
 			}
 			if (!partial || source.getCountry() != null) {
 				contact.setCountry(source.getCountry());
+			}
+			if (!partial || source.getCity() != null) {
+				contact.setCity(StringUtils.trimToNull(source.getCity()));
 			}
 		}
 		return userDAO.updateUser(existing);

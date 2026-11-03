@@ -165,4 +165,36 @@ class EventMongoRepositoryTest {
 		assertEquals(Arrays.asList(PREFIX + "invited", PREFIX + "created"),
 				found.stream().map(EventDoc::getTitle).collect(Collectors.toList()));
 	}
+
+	@Test
+	void aroundMeMatchesTheLocationCityAWordInTheLocationNameOrTheCityTag() {
+		Instant now = Instant.parse("2026-11-03T12:00:00Z");
+		Instant soon = now.plusSeconds(86400);
+		String city = "Munich";
+		String[][] specs = {
+				// title, location.city, location.name, tag, public?, starts in the past?
+				{ "structured city", "munich", "Werksviertel", "", "true", "" },
+				{ "name mentions city", "", "Café Spielwiese, Munich", "", "true", "" },
+				{ "city tag", "", "Somewhere", "#munich", "true", "" },
+				{ "only part of a word", "", "Munichsburg Hall", "", "true", "" },
+				{ "other city", "Berlin", "Berlin Mitte", "#berlin", "true", "" },
+				{ "private", "Munich", "", "", "false", "" },
+				{ "over", "Munich", "", "", "true", "past" } };
+		for (String[] spec : specs) {
+			EventDoc e = save(PREFIX + spec[0], BOB, spec[5].isEmpty() ? soon : now.minusSeconds(86400));
+			EventDoc.EventLocation location = new EventDoc.EventLocation();
+			location.setCity(spec[1].isEmpty() ? null : spec[1]);
+			location.setName(spec[2].isEmpty() ? null : spec[2]);
+			e.setLocation(location);
+			e.setTags(spec[3].isEmpty() ? new ArrayList<>() : new ArrayList<>(Arrays.asList(spec[3])));
+			e.setIsPublic(Boolean.valueOf(spec[4]));
+			repository.save(e);
+		}
+		String quoted = java.util.regex.Pattern.quote(city);
+
+		List<EventDoc> found = repository.findUpcomingPublicInCity(now, "^" + quoted + "$",
+				"(^|[^\\p{L}])" + quoted + "($|[^\\p{L}])", "#munich", PageRequest.of(0, 1000, Sort.by("startTime")));
+
+		assertEquals(Set.of(PREFIX + "structured city", PREFIX + "name mentions city", PREFIX + "city tag"), titles(found));
+	}
 }
