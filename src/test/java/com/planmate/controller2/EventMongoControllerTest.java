@@ -302,14 +302,47 @@ class EventMongoControllerTest {
 	}
 
 	@Test
+	void onlyInviteesCanAnswerAndOnlyWithKnownAnswers() {
+		EventDoc dinner = event("dinner", ALICE, false, "2");
+		when(service.getEventById("dinner")).thenReturn(dinner);
+
+		controller.respond("dinner", java.util.Map.of("response", "maybe"), user(BOB));
+		verify(service).setResponse("dinner", "2", "maybe");
+
+		assertEquals(HttpStatus.NOT_FOUND,
+				statusOf(() -> controller.respond("dinner", java.util.Map.of("response", "accepted"), user(CAROL))));
+		assertEquals(HttpStatus.BAD_REQUEST,
+				statusOf(() -> controller.respond("dinner", java.util.Map.of("response", "yes please"), user(BOB))));
+		assertEquals(HttpStatus.UNAUTHORIZED,
+				statusOf(() -> controller.respond("dinner", java.util.Map.of("response", "accepted"), null)));
+		verify(service, never()).setResponse(eq("dinner"), eq("3"), anyString());
+	}
+
+	@Test
+	void answersAreSharedWithTheInvitedButNotWithStrangers() {
+		EventDoc invited = event("invited", BOB, false, "1", "3");
+		invited.getResponses().put("3", "declined");
+		EventDoc going = attended("going", CAROL, "1");
+		going.getResponses().put("2", "accepted");
+		when(service.getVisibleEventsInRange(ALICE, "1", START, END)).thenReturn(Arrays.asList(invited, going));
+
+		controller.getEventsByRange(null, START, END, user(ALICE));
+
+		assertEquals("declined", invited.getResponses().get("3"));
+		assertTrue(going.getResponses().isEmpty());
+	}
+
+	@Test
 	void clientCannotSeedAttendeesWhenCreating() {
 		EventDoc forged = event(null, null, true);
 		forged.setAttendeeIds(new ArrayList<>(Arrays.asList("2", "3")));
+		forged.getResponses().put("2", "accepted");
 
 		controller.createEvent(forged, user(ALICE));
 
 		ArgumentCaptor<EventDoc> saved = ArgumentCaptor.forClass(EventDoc.class);
 		verify(service).createEvent(saved.capture());
 		assertTrue(saved.getValue().getAttendeeIds().isEmpty());
+		assertTrue(saved.getValue().getResponses().isEmpty());
 	}
 }

@@ -106,4 +106,23 @@ class EventMongoRepositoryTest {
 		assertEquals(Set.of(PREFIX + "upcoming munich"),
 				titles(repository.findUpcomingPublicWithTag(now, "#munich", all)));
 	}
+
+	@Autowired
+	private com.planmate.service.EventMongoService eventService;
+
+	@Test
+	void answersAreStoredPerInviteeAndDroppedWhenUninvited() {
+		EventDoc dinner = save(PREFIX + "dinner", ALICE, Instant.parse("2026-11-15T19:00:00Z"), "2", "3");
+
+		eventService.setResponse(dinner.getId(), "2", "accepted");
+		eventService.setResponse(dinner.getId(), "3", "maybe");
+		eventService.setResponse(dinner.getId(), "3", "declined");
+		assertEquals(java.util.Map.of("2", "accepted", "3", "declined"),
+				repository.findById(dinner.getId()).get().getResponses());
+
+		EventDoc update = repository.findById(dinner.getId()).get();
+		update.setParticipantIds(new ArrayList<>(Arrays.asList("2")));
+		eventService.updateEvent(dinner.getId(), update);
+		assertEquals(java.util.Map.of("2", "accepted"), repository.findById(dinner.getId()).get().getResponses());
+	}
 }

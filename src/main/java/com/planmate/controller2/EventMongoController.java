@@ -57,6 +57,7 @@ public class EventMongoController {
 	static final String ROLE_HOST = "host";
 	static final String ROLE_INVITED = "invited";
 	static final String ROLE_GOING = "going";
+	static final Set<String> RESPONSES = Set.of("accepted", "maybe", "declined");
 
 	private final EventMongoService eventService;
 	private final UserService userService;
@@ -91,6 +92,7 @@ public class EventMongoController {
 		if (!ROLE_INVITED.equals(role)) {
 			event.setCreatorId(null);
 			event.setParticipantIds(new ArrayList<>());
+			event.setResponses(new HashMap<>());
 		}
 		return event;
 	}
@@ -185,6 +187,7 @@ public class EventMongoController {
 		// Never let the client choose the id: save() with an existing id would overwrite someone else's event
 		event.setId(null);
 		event.setAttendeeIds(new ArrayList<>());
+		event.setResponses(new HashMap<>());
 		return new ResponseEntity<>(eventService.createEvent(event), HttpStatus.CREATED);
 	}
 
@@ -256,6 +259,22 @@ public class EventMongoController {
 			Principal principal) {
 		String viewer = principal == null ? null : principal.getName();
 		return ResponseEntity.ok(feedService.getFeed(viewer, tag, page, size));
+	}
+
+	/** An invitee answers an invitation: accepted, maybe or declined. Only invited participants may answer. */
+	@PutMapping("/{id}/response")
+	public ResponseEntity<EventDoc> respond(@PathVariable String id, @RequestBody Map<String, String> body,
+			Principal principal) {
+		String myId = requireUserId(principal);
+		String response = body == null ? null : body.get("response");
+		if (response == null || !RESPONSES.contains(response)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Answer with accepted, maybe or declined.");
+		}
+		if (!contains(findEvent(id).getParticipantIds(), myId)) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found.");
+		}
+		eventService.setResponse(id, myId, response);
+		return ResponseEntity.ok(forNonOwner(findEvent(id), ROLE_INVITED, new HashMap<>()));
 	}
 
 	/** Join a public event from the feed. It then shows in the caller's calendar, read-only. */

@@ -8,7 +8,9 @@ import lombok.Data;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Document(collection = "events")
 @Data
@@ -27,6 +29,11 @@ public class EventDoc {
 	private List<String> participantIds = new ArrayList<>();
 	/** User ids (as strings) of people who joined this public event from the feed. */
 	private List<String> attendeeIds = new ArrayList<>();
+	/**
+	 * Invitees' answers: participant user id -> "accepted", "maybe" or "declined". A participant without an entry
+	 * has not answered yet.
+	 */
+	private Map<String, String> responses = new HashMap<>();
 	private List<String> tags = new ArrayList<>();
 	private EventLocation location;
 	private Boolean isPublic;
@@ -103,6 +110,14 @@ public class EventDoc {
 
 	public void setAttendeeIds(List<String> attendeeIds) {
 		this.attendeeIds = attendeeIds;
+	}
+
+	public Map<String, String> getResponses() {
+		return responses;
+	}
+
+	public void setResponses(Map<String, String> responses) {
+		this.responses = responses;
 	}
 
 	public String getHostName() {
@@ -198,8 +213,4 @@ public class EventDoc {
 		}
 	}
 
-	public String toSimplifiedString() {
-		return "Event title=" + title + ", startTime=" + startTime + ", endTime=" + endTime + ", description="
-				+ description + ", location=" + location + "]";
-	}
 }

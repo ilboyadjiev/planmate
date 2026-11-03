@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.planmate.service.EventMongoService;
+import com.planmate.service.GamePlanService;
 import com.planmate.util.AiSummaryResponse;
 import com.planmate.util.AiSummaryResult;
 
@@ -23,10 +23,10 @@ public class AiController {
 
 	private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(AiController.class);
 
-	private final EventMongoService eventService;
+	private final GamePlanService gamePlanService;
 
-	public AiController(EventMongoService eventService) {
-		this.eventService = eventService;
+	public AiController(GamePlanService gamePlanService) {
+		this.gamePlanService = gamePlanService;
 	}
 
 	private static class SummaryTracker {
@@ -77,7 +77,7 @@ public class AiController {
 		}
 
 		// If checks pass, generate a new summary from Gemini
-		AiSummaryResult summaryResult = eventService.getAiSummary(username);
+		AiSummaryResult summaryResult = gamePlanService.getGamePlan(username);
 		Instant nextRefreshTime = now.plus(COOLDOWN_MINUTES, ChronoUnit.MINUTES);
 		int callsToIncrement = summaryResult.isApiCalled() ? 1 : 0;
 
@@ -91,7 +91,7 @@ public class AiController {
 			tracker.dailyCalls += callsToIncrement;
 		}
 
-		logger.info("AI Summary for user {} was generated successfully. Calls remaining today: {}", username,
+		logger.info("Game plan for user {} was generated successfully. Calls remaining today: {}", username,
 				MAX_DAILY_CALLS - tracker.dailyCalls);
 
 		AiSummaryResponse response = new AiSummaryResponse(tracker.cachedSummary, tracker.lastGeneratedAt,
