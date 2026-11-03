@@ -5,18 +5,24 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.planmate.dao.EventMongoRepository;
+import com.planmate.dto.FriendGroup;
 import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
 import com.planmate.dto2.EventDoc;
@@ -90,12 +96,45 @@ public class FeedService {
 	private final EventMongoRepository repository;
 	private final UserService userService;
 	private final FriendshipService friendshipService;
+	private final FriendGroupService friendGroupService;
 
 	public FeedService(EventMongoRepository repository, UserService userService,
-			FriendshipService friendshipService) {
+			FriendshipService friendshipService, FriendGroupService friendGroupService) {
 		this.repository = repository;
 		this.userService = userService;
 		this.friendshipService = friendshipService;
+		this.friendGroupService = friendGroupService;
+	}
+
+	/**
+	 * A friend group's upcoming events, soonest first: the ones the viewer created or was invited to.
+	 * Only members of the group may read it (404 otherwise, so group ids cannot be probed).
+	 */
+	public FeedPage getGroupFeed(String viewerEmail, Long groupId, int page, int size) {
+		return getGroupFeed(viewerEmail, groupId, page, size, Instant.now());
+	}
+
+	FeedPage getGroupFeed(String viewerEmail, Long groupId, int page, int size, Instant now) {
+		Viewer viewer = viewer(viewerEmail);
+		if (viewer.id == null) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+		}
+		FriendGroup group = friendGroupService.groupsOf(viewerEmail).stream()
+				.filter(g -> g.getId().equals(groupId)).findFirst()
+				.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Group not found."));
+
+		int pageSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
+		int pageIndex = Math.max(0, page);
+		Page<EventDoc> events = repository.findUpcomingForGroupMember(String.valueOf(groupId), now, viewerEmail,
+				viewer.id, PageRequest.of(pageIndex, pageSize, Sort.by("startTime").ascending()));
+
+		// Group members share the group, so they may see each other's names on the cards
+		Map<String, User> members = group.getMembers().stream()
+				.collect(Collectors.toMap(m -> String.valueOf(m.getId()), m -> m, (a, b) -> a));
+		Map<String, User> hosts = new HashMap<>();
+		List<FeedEvent> cards = events.getContent().stream().map(e -> toFeedEvent(e, viewer, hosts, members))
+				.collect(Collectors.toList());
+		return new FeedPage(cards, pageIndex, events.hasNext());
 	}
 
 	public FeedPage getFeed(String viewerEmail, String tag, int page, int size) {
@@ -124,14 +163,15 @@ public class FeedService {
 		}
 		int to = (int) Math.min(ranked.size(), from + pageSize);
 		Map<String, User> hosts = new HashMap<>();
-		List<FeedEvent> cards = ranked.subList((int) from, to).stream().map(e -> toFeedEvent(e, viewer, hosts))
+		List<FeedEvent> cards = ranked.subList((int) from, to).stream()
+				.map(e -> toFeedEvent(e, viewer, hosts, Collections.emptyMap()))
 				.collect(Collectors.toList());
 		return new FeedPage(cards, pageIndex, to < ranked.size());
 	}
 
 	/** One event as a feed card for this viewer, e.g. right after they joined it. */
 	public FeedEvent toFeedEvent(EventDoc event, String viewerEmail) {
-		return toFeedEvent(event, viewer(viewerEmail), new HashMap<>());
+		return toFeedEvent(event, viewer(viewerEmail), new HashMap<>(), Collections.emptyMap());
 	}
 
 	/**
@@ -172,9 +212,26 @@ public class FeedService {
 		return social + popularity + soonness;
 	}
 
-	private FeedEvent toFeedEvent(EventDoc event, Viewer viewer, Map<String, User> hostCache) {
+	/**
+	 * knownPeople: besides the viewer's friends, people the viewer may see by name on this card (fellow group
+	 * members in a group's feed). Everyone else going is only counted.
+	 */
+	private FeedEvent toFeedEvent(EventDoc event, Viewer viewer, Map<String, User> hostCache,
+			Map<String, User> knownPeople) {
 		List<String> attendees = attendeesOf(event);
 		String creatorId = event.getCreatorId();
+		Map<String, String> responses = event.getResponses() == null ? Collections.emptyMap() : event.getResponses();
+		boolean invited = viewer.id != null && event.getParticipantIds() != null
+				&& event.getParticipantIds().contains(viewer.id);
+		String myResponse = invited ? responses.getOrDefault(viewer.id, "pending") : null;
+
+		// Going = joined from the feed, or accepted an invitation
+		Set<String> going = new LinkedHashSet<>(attendees);
+		responses.forEach((userId, answer) -> {
+			if ("accepted".equals(answer)) {
+				going.add(userId);
+			}
+		});
 
 		FeedEvent card = new FeedEvent();
 		card.setId(event.getId());
@@ -191,10 +248,14 @@ public class FeedService {
 				viewer.isFriendEmail(creatorId), hosting));
 		card.setHosting(hosting);
 
-		card.setAttendeeCount(attendees.size());
-		card.setGoing(viewer.id != null && attendees.contains(viewer.id));
-		// Only the viewer's friends are named; everyone else is just part of the count
-		card.setFriendsGoing(attendees.stream().map(viewer.friendsById::get).filter(Objects::nonNull)
+		card.setInvited(invited);
+		card.setMyResponse(myResponse);
+		card.setAttendeeCount(going.size());
+		card.setGoing(viewer.id != null && going.contains(viewer.id));
+		// Only the viewer's friends (and fellow group members in a group feed) are named; others are just counted
+		card.setFriendsGoing(going.stream().filter(id -> !id.equals(viewer.id))
+				.map(id -> viewer.friendsById.containsKey(id) ? viewer.friendsById.get(id) : knownPeople.get(id))
+				.filter(Objects::nonNull)
 				.map(f -> new FeedEvent.Friend(f.getId(), f.getFirstName(), f.getLastName(), f.getUsername()))
 				.collect(Collectors.toList()));
 		return card;

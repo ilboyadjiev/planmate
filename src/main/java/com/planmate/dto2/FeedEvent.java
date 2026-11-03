@@ -83,6 +83,26 @@ public class FeedEvent {
 	private List<Friend> friendsGoing;
 	private boolean going;
 	private boolean hosting;
+	/** True when the viewer was invited (directly or through a friend group) and can answer on the card. */
+	private boolean invited;
+	/** The viewer's answer to the invitation: accepted, maybe, declined or pending; null when not invited. */
+	private String myResponse;
+
+	public boolean isInvited() {
+		return invited;
+	}
+
+	public void setInvited(boolean invited) {
+		this.invited = invited;
+	}
+
+	public String getMyResponse() {
+		return myResponse;
+	}
+
+	public void setMyResponse(String myResponse) {
+		this.myResponse = myResponse;
+	}
 
 	public String getId() {
 		return id;

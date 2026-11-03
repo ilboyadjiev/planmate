@@ -282,13 +282,20 @@ public class EventMongoController {
 
 	/**
 	 * Upcoming public events ranked for the caller (see FeedService). No tag means "For you": all upcoming public
-	 * events. Guests get the same feed without the friend signals.
+	 * events. Guests get the same feed without the friend signals. With group, the feed shows that friend group's
+	 * upcoming events instead (members only).
 	 */
 	@GetMapping("/feed")
 	public ResponseEntity<FeedService.FeedPage> getFeedEvents(@RequestParam(required = false) String tag,
-			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "5") int size,
-			Principal principal) {
+			@RequestParam(required = false) Long group, @RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "5") int size, Principal principal) {
 		String viewer = principal == null ? null : principal.getName();
+		if (group != null) {
+			if (viewer == null) {
+				throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+			}
+			return ResponseEntity.ok(feedService.getGroupFeed(viewer, group, page, size));
+		}
 		return ResponseEntity.ok(feedService.getFeed(viewer, tag, page, size));
 	}
 

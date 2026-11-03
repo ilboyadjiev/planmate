@@ -28,6 +28,14 @@ public interface EventMongoRepository extends MongoRepository<EventDoc, String> 
     @Query("{ 'isPublic': true, 'endTime': { $gt: ?0 } }")
     List<EventDoc> findUpcomingPublic(Instant now, Pageable pageable);
 
+    /**
+     * A friend group's events that have not ended yet and that the user created or was invited to, for the
+     * group's feed. Public or not: group members are invited, so they may see them.
+     */
+    @Query("{ 'groupIds': ?0, 'endTime': { $gt: ?1 }, $or: [ { 'creatorId': ?2 }, { 'participantIds': ?3 } ] }")
+    org.springframework.data.domain.Page<EventDoc> findUpcomingForGroupMember(String groupId, Instant now,
+            String email, String userId, Pageable pageable);
+
     /** Same as findUpcomingPublic, limited to one tag (tags are stored normalised: lower case, leading '#'). */
     @Query("{ 'isPublic': true, 'endTime': { $gt: ?0 }, 'tags': ?1 }")
     List<EventDoc> findUpcomingPublicWithTag(Instant now, String tag, Pageable pageable);

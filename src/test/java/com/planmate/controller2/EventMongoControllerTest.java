@@ -79,8 +79,8 @@ class EventMongoControllerTest {
 		service = mock(EventMongoService.class);
 		UserService userService = mock(UserService.class);
 		FriendshipService friendshipService = mock(FriendshipService.class);
-		FeedService feedService = new FeedService(mock(EventMongoRepository.class), userService, friendshipService);
 		groupService = mock(FriendGroupService.class);
+		FeedService feedService = new FeedService(mock(EventMongoRepository.class), userService, friendshipService, groupService);
 		controller = new EventMongoController(service, userService, friendshipService, feedService, groupService);
 
 		User alice = account(1, ALICE);

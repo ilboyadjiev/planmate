@@ -66,7 +66,7 @@ class GamePlanServiceTest {
 		UserService users = mock(UserService.class);
 		when(users.getUserByEmail(ALICE)).thenReturn(account(1, ALICE, "Alice"));
 		when(users.getUserByEmail(BOB)).thenReturn(account(2, BOB, "Bob"));
-		FeedService feed = new FeedService(repository, users, mock(FriendshipService.class));
+		FeedService feed = new FeedService(repository, users, mock(FriendshipService.class), mock(FriendGroupService.class));
 
 		service = new GamePlanService(repository, users, feed) {
 			@Override

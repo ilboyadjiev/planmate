@@ -34,6 +34,7 @@ class FeedServiceTest {
 	private static final String CAROL = "carol@example.com"; // id 3, stranger
 
 	private EventMongoRepository repository;
+	private FriendGroupService groups;
 	private FeedService feed;
 
 	private static User account(long id, String email, String first, String last, String username) {
@@ -71,7 +72,8 @@ class FeedServiceTest {
 		repository = mock(EventMongoRepository.class);
 		UserService users = mock(UserService.class);
 		FriendshipService friendships = mock(FriendshipService.class);
-		feed = new FeedService(repository, users, friendships);
+		groups = mock(FriendGroupService.class);
+		feed = new FeedService(repository, users, friendships, groups);
 
 		User alice = account(1, ALICE, "Alice", "Meier", "alice");
 		User bob = account(2, BOB, "Bob", null, "bob");
@@ -176,5 +178,68 @@ class FeedServiceTest {
 		feed.getFeed(null, "  Munich ", 0, 5, NOW);
 
 		verify(repository).findUpcomingPublicWithTag(eq(NOW), eq("#munich"), any());
+	}
+
+	private static com.planmate.dto.FriendGroup boardGames(User... members) {
+		com.planmate.dto.FriendGroup group = new com.planmate.dto.FriendGroup();
+		group.setId(7L);
+		group.setName("Board games");
+		group.getMembers().addAll(Arrays.asList(members));
+		return group;
+	}
+
+	private static EventDoc invite(String id, String creator, Duration startsIn, String... participantIds) {
+		EventDoc e = event(id, creator, startsIn);
+		e.setIsPublic(false);
+		e.setParticipantIds(new ArrayList<>(Arrays.asList(participantIds)));
+		e.setGroupIds(new ArrayList<>(Arrays.asList("7")));
+		return e;
+	}
+
+	@Test
+	void groupFeedShowsInvitesWithTheViewersAnswerAndNamesFellowMembers() {
+		User carol = account(3, CAROL, null, null, "carol"); // not Alice's friend, but in her group
+		when(groups.groupsOf(ALICE)).thenReturn(Collections.singletonList(boardGames(account(1, ALICE, "Alice", "Meier", "alice"), carol)));
+		EventDoc dixit = invite("dixit", CAROL, Duration.ofDays(1), "1");
+		dixit.getResponses().put("3", "accepted");
+		EventDoc catan = invite("catan", CAROL, Duration.ofDays(2), "1");
+		catan.getResponses().put("1", "maybe");
+		when(repository.findUpcomingForGroupMember(eq("7"), eq(NOW), eq(ALICE), eq("1"), any()))
+				.thenReturn(new org.springframework.data.domain.PageImpl<>(Arrays.asList(dixit, catan)));
+
+		List<FeedEvent> cards = feed.getGroupFeed(ALICE, 7L, 0, 10, NOW).getEvents();
+
+		assertTrue(cards.get(0).isInvited());
+		assertEquals("pending", cards.get(0).getMyResponse());
+		assertEquals(1, cards.get(0).getAttendeeCount()); // Carol accepted
+		assertEquals("carol", cards.get(0).getFriendsGoing().get(0).getUsername()); // named: same group
+		assertEquals("maybe", cards.get(1).getMyResponse());
+		assertFalse(cards.get(1).isGoing());
+	}
+
+	@Test
+	void onlyMembersCanReadAGroupsFeed() {
+		when(groups.groupsOf(ALICE)).thenReturn(Collections.emptyList());
+
+		org.springframework.web.server.ResponseStatusException denied = org.junit.jupiter.api.Assertions.assertThrows(
+				org.springframework.web.server.ResponseStatusException.class, () -> feed.getGroupFeed(ALICE, 7L, 0, 10, NOW));
+		assertEquals(org.springframework.http.HttpStatus.NOT_FOUND, denied.getStatus());
+		org.junit.jupiter.api.Assertions.assertThrows(org.springframework.web.server.ResponseStatusException.class,
+				() -> feed.getGroupFeed(null, 7L, 0, 10, NOW));
+	}
+
+	@Test
+	void acceptedInvitationsCountAsGoingInTheMainFeedToo() {
+		EventDoc party = event("party", CAROL, Duration.ofDays(1), "2");
+		party.setParticipantIds(new ArrayList<>(Arrays.asList("1")));
+		party.getResponses().put("1", "accepted");
+		candidates(party);
+
+		FeedEvent card = feed.getFeed(ALICE, null, 0, 10, NOW).getEvents().get(0);
+
+		assertEquals(2, card.getAttendeeCount()); // Bob joined, Alice accepted
+		assertTrue(card.isGoing());
+		assertTrue(card.isInvited());
+		assertEquals("accepted", card.getMyResponse());
 	}
 }

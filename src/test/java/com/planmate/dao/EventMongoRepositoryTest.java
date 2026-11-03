@@ -144,4 +144,25 @@ class EventMongoRepositoryTest {
 		assertEquals(Arrays.asList("8"), after.getAttendeeIds());
 		assertEquals(java.util.Map.of("7", "maybe"), after.getResponses());
 	}
+
+	@Test
+	void groupFeedListsUpcomingGroupEventsTheUserCreatedOrWasInvitedTo() {
+		Instant now = Instant.parse("2026-11-03T12:00:00Z");
+		String group = PREFIX + "group";
+		for (String[] spec : new String[][] {
+				{ "invited", BOB, "86400", ALICE_ID }, { "created", ALICE, "172800", "" },
+				{ "not invited", BOB, "86400", "99" }, { "over", BOB, "-86400", ALICE_ID } }) {
+			EventDoc e = save(PREFIX + spec[0], spec[1], now.plusSeconds(Long.parseLong(spec[2])),
+					spec[3].isEmpty() ? new String[0] : new String[] { spec[3] });
+			e.setGroupIds(new ArrayList<>(Arrays.asList(group)));
+			repository.save(e);
+		}
+		save(PREFIX + "other group", BOB, now.plusSeconds(86400), ALICE_ID);
+
+		List<EventDoc> found = repository.findUpcomingForGroupMember(group, now, ALICE, ALICE_ID,
+				PageRequest.of(0, 10, Sort.by("startTime"))).getContent();
+
+		assertEquals(Arrays.asList(PREFIX + "invited", PREFIX + "created"),
+				found.stream().map(EventDoc::getTitle).collect(Collectors.toList()));
+	}
 }
