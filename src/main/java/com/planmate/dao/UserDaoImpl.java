@@ -73,11 +73,18 @@ public class UserDaoImpl implements UserDAO {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public List<User> searchUsernames(String user, String searchText) {
+	/**
+	 * People whose username, first name, last name or full name contains the text (any case), except the viewer.
+	 * Never matches emails. viewerEmail is the caller (the JWT subject).
+	 */
+	public List<User> searchUsernames(String viewerEmail, String searchText) {
 		Session session = sessionFactory.getCurrentSession();
-		String hql = "FROM User u WHERE u.username like :username and u.username != :current_user";
-		List<User> users = session.createQuery(hql).setParameter("username", "%" + searchText + "%").setParameter("current_user", user).setMaxResults(50)
-				.list();
+		String like = "%" + searchText.toLowerCase().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+		String hql = "FROM User u WHERE u.email <> :viewer AND (lower(u.username) LIKE :t OR lower(u.firstName) LIKE :t "
+				+ "OR lower(u.lastName) LIKE :t OR lower(concat(coalesce(u.firstName, ''), ' ', coalesce(u.lastName, ''))) LIKE :t) "
+				+ "ORDER BY u.username";
+		List<User> users = session.createQuery(hql).setParameter("viewer", viewerEmail).setParameter("t", like)
+				.setMaxResults(50).list();
 		return users;
 	}
 

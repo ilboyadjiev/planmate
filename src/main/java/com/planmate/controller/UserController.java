@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -26,8 +25,8 @@ import com.planmate.dto.User;
 import com.planmate.service.EventMongoService;
 import com.planmate.service.FriendGroupService;
 import com.planmate.service.FriendshipService;
+import com.planmate.service.PeopleService;
 import com.planmate.service.UserService;
-import com.planmate.util.JwtUtil;
 import com.planmate.util.PublicViews;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,9 +41,6 @@ public class UserController {
 	private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
 	@Autowired
-	private JwtUtil jwtUtil;
-
-	@Autowired
 	private UserService userService;
 
 	@Autowired
@@ -55,6 +51,9 @@ public class UserController {
 
 	@Autowired
 	private FriendGroupService friendGroupService;
+
+	@Autowired
+	private PeopleService peopleService;
 
 	@PostMapping("/register")
 	@Operation(summary = "Create a new user")
@@ -130,21 +129,13 @@ public class UserController {
 		return new ResponseEntity<>(PublicViews.friendships(friends), HttpStatus.OK);
 	}
 
+	/** People by username or name (not email), those with mutual friends first. At least two characters. */
 	@GetMapping("/search")
-	public ResponseEntity<List<Map<String, Object>>> searchUsernames(@RequestParam String term,
-			@RequestHeader("Authorization") String authorizationHeader) {
-		// Retrieve the currently logged in user
-		String username = "";
-		if (authorizationHeader != null) {
-			String jwtToken = authorizationHeader.replace("Bearer ", "");
-			username = jwtUtil.extractUsername(jwtToken);
-		} else {
+	public ResponseEntity<List<Map<String, Object>>> searchUsernames(@RequestParam String term, Principal principal) {
+		if (principal == null) {
 			return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
 		}
-
-		// Name and username only: search must not reveal anyone's email or contact details
-		List<User> results = userService.searchUsernames(username, term);
-		return new ResponseEntity<>(PublicViews.people(results), HttpStatus.OK);
+		return new ResponseEntity<>(peopleService.search(principal.getName(), term), HttpStatus.OK);
 	}
 
 	@DeleteMapping("/{id}")

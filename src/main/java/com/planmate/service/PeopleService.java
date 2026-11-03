@@ -1,0 +1,139 @@
+package com.planmate.service;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+import com.planmate.dao.EventMongoRepository;
+import com.planmate.dto.FriendGroup;
+import com.planmate.dto.Friendship;
+import com.planmate.dto.User;
+import com.planmate.util.ConstantsUtil;
+import com.planmate.util.PublicViews;
+
+/**
+ * Finding people and their profile pages. Everything here shows names and usernames only, never emails or
+ * contact details.
+ *
+ * A profile shows mutual friends, shared groups and the person's upcoming public events. Public events they joined
+ * are only shown to their friends (and themselves), like everywhere else in the app.
+ */
+@Service
+public class PeopleService {
+
+	static final int MIN_SEARCH_LENGTH = 2;
+	static final int MAX_SEARCH_RESULTS = 20;
+	static final int MAX_PROFILE_EVENTS = 10;
+
+	private final UserService userService;
+	private final FriendshipService friendshipService;
+	private final FriendGroupService friendGroupService;
+	private final EventMongoRepository events;
+	private final FeedService feedService;
+
+	public PeopleService(UserService userService, FriendshipService friendshipService,
+			FriendGroupService friendGroupService, EventMongoRepository events, FeedService feedService) {
+		this.userService = userService;
+		this.friendshipService = friendshipService;
+		this.friendGroupService = friendGroupService;
+		this.events = events;
+		this.feedService = feedService;
+	}
+
+	/** People matching the text by username or name; those you have mutual friends with come first. */
+	public List<Map<String, Object>> search(String viewerEmail, String term) {
+		String text = StringUtils.normalizeSpace(term);
+		if (viewerEmail == null || text == null || text.length() < MIN_SEARCH_LENGTH) {
+			return new ArrayList<>();
+		}
+		Map<Long, User> myFriends = friendsOf(viewerEmail);
+		List<Map<String, Object>> results = new ArrayList<>();
+		for (User person : userService.searchUsernames(viewerEmail, text)) {
+			List<User> mutual = mutualFriends(myFriends, person);
+			Map<String, Object> view = new LinkedHashMap<>(PublicViews.person(person));
+			view.put("mutualFriendCount", mutual.size());
+			view.put("mutualFriends", mutual.stream().limit(2).map(PublicViews::person).collect(Collectors.toList()));
+			results.add(view);
+		}
+		results.sort(Comparator.comparingInt((Map<String, Object> v) -> -((Integer) v.get("mutualFriendCount")))
+				.thenComparing(v -> StringUtils.defaultString((String) v.get("username"))));
+		return results.stream().limit(MAX_SEARCH_RESULTS).collect(Collectors.toList());
+	}
+
+	/** Someone's profile as the viewer may see it. 404 for unknown people. */
+	public Map<String, Object> profile(String viewerEmail, Long personId) {
+		User me = viewerEmail == null ? null : userService.getUserByEmail(viewerEmail);
+		if (me == null) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+		}
+		User person = personId == null ? null : userService.getUserById(personId);
+		if (person == null) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Person not found.");
+		}
+		boolean self = me.getId().equals(person.getId());
+		Map<Long, User> myFriends = friendsOf(viewerEmail);
+		boolean friend = myFriends.containsKey(person.getId());
+
+		Map<String, Object> profile = new LinkedHashMap<>(PublicViews.person(person));
+		profile.put("self", self);
+		profile.put("friend", friend);
+		List<User> mutual = self ? new ArrayList<>() : mutualFriends(myFriends, person);
+		profile.put("mutualFriends", mutual.stream().map(PublicViews::person).collect(Collectors.toList()));
+		profile.put("sharedGroups", self ? new ArrayList<>()
+				: friendGroupService.groupsOf(viewerEmail).stream()
+						.filter(g -> g.hasMember(person.getId()))
+						.map(FriendGroup::getName)
+						.collect(Collectors.toList()));
+
+		Instant now = Instant.now();
+		PageRequest soonest = PageRequest.of(0, MAX_PROFILE_EVENTS, Sort.by("startTime").ascending());
+		profile.put("hosting", events.findUpcomingPublicHostedBy(person.getEmail(), now, soonest).stream()
+				.map(e -> feedService.toFeedEvent(e, viewerEmail)).collect(Collectors.toList()));
+		// Which public events someone joined is only shared with their friends
+		profile.put("going", friend || self
+				? events.findUpcomingPublicAttendedBy(String.valueOf(person.getId()), now, soonest).stream()
+						.map(e -> feedService.toFeedEvent(e, viewerEmail)).collect(Collectors.toList())
+				: new ArrayList<>());
+		return profile;
+	}
+
+	private Map<Long, User> friendsOf(String email) {
+		User user = userService.getUserByEmail(email);
+		if (user == null) {
+			return new LinkedHashMap<>();
+		}
+		Map<Long, User> friends = new LinkedHashMap<>();
+		for (Friendship f : friendshipService.getFriendshipList(email)) {
+			if (!ConstantsUtil.FRIENDSHIP_STATUS_ACCEPTED.equalsIgnoreCase(f.getStatus())
+					|| f.getUserA() == null || f.getUserB() == null) {
+				continue;
+			}
+			User other = user.getId().equals(f.getUserA().getId()) ? f.getUserB() : f.getUserA();
+			friends.put(other.getId(), other);
+		}
+		return friends;
+	}
+
+	private List<User> mutualFriends(Map<Long, User> myFriends, User person) {
+		if (myFriends.isEmpty() || person.getEmail() == null) {
+			return new ArrayList<>();
+		}
+		Set<Long> theirs = friendsOf(person.getEmail()).keySet();
+		return theirs.stream().map(myFriends::get).filter(Objects::nonNull)
+				.sorted(Comparator.comparing(u -> StringUtils.defaultString(u.getFirstName())))
+				.collect(Collectors.toList());
+	}
+}
