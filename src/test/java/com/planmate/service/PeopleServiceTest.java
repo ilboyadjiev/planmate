@@ -157,4 +157,19 @@ class PeopleServiceTest {
 	void unknownPeopleAreNotFound() {
 		assertThrows(ResponseStatusException.class, () -> people.profile(alice.getEmail(), -1L));
 	}
+
+	@Test
+	void onlyFriendsCanSeeWhenSomeoneIsFree() {
+		Instant start = Instant.now().plusSeconds(3 * 86400);
+
+		assertEquals(Boolean.TRUE, people.availabilityAt(alice.getEmail(), bob.getId(), start, start.plusSeconds(3600)).get("theyFree"));
+		assertEquals(3, ((List<?>) people.sharedFreeSlots(alice.getEmail(), bob.getId(), null, 3, 60,
+				java.time.ZoneId.of("Europe/Berlin")).get("days")).size());
+
+		// Dave is not Alice's friend (only friends of her friends)
+		assertThrows(ResponseStatusException.class,
+				() -> people.availabilityAt(alice.getEmail(), dave.getId(), start, start.plusSeconds(3600)));
+		assertThrows(ResponseStatusException.class,
+				() -> people.sharedFreeSlots(alice.getEmail(), dave.getId(), null, 3, 60, java.time.ZoneId.of("Europe/Berlin")));
+	}
 }

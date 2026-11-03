@@ -43,14 +43,52 @@ public class PeopleService {
 	private final FriendGroupService friendGroupService;
 	private final EventMongoRepository events;
 	private final FeedService feedService;
+	private final AvailabilityService availability;
 
 	public PeopleService(UserService userService, FriendshipService friendshipService,
-			FriendGroupService friendGroupService, EventMongoRepository events, FeedService feedService) {
+			FriendGroupService friendGroupService, EventMongoRepository events, FeedService feedService,
+			AvailabilityService availability) {
 		this.userService = userService;
 		this.friendshipService = friendshipService;
 		this.friendGroupService = friendGroupService;
 		this.events = events;
 		this.feedService = feedService;
+		this.availability = availability;
+	}
+
+	/**
+	 * Times when the viewer and a friend are both free (see AvailabilityService). Friends only: nobody else may
+	 * learn when someone is free. 404 for anyone who is not the viewer's friend.
+	 */
+	public Map<String, Object> sharedFreeSlots(String viewerEmail, Long friendId, java.time.LocalDate fromDay,
+			int days, int minutes, java.time.ZoneId zone) {
+		User[] pair = meAndFriend(viewerEmail, friendId);
+		java.time.LocalDate start = fromDay != null ? fromDay : java.time.LocalDate.now(zone);
+		return availability.sharedFreeSlots(pair[0], pair[1], start, days, minutes, zone, Instant.now());
+	}
+
+	/** Whether the viewer and a friend are free at a given time ({ "youFree": .., "theyFree": .. }). Friends only. */
+	public Map<String, Object> availabilityAt(String viewerEmail, Long friendId, Instant start, Instant end) {
+		User[] pair = meAndFriend(viewerEmail, friendId);
+		if (start == null || end == null || !end.isAfter(start)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "The end must be after the start.");
+		}
+		Map<String, Object> result = new LinkedHashMap<>();
+		result.put("youFree", availability.isFree(pair[0], start, end));
+		result.put("theyFree", availability.isFree(pair[1], start, end));
+		return result;
+	}
+
+	private User[] meAndFriend(String viewerEmail, Long friendId) {
+		User me = viewerEmail == null ? null : userService.getUserByEmail(viewerEmail);
+		if (me == null) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+		}
+		User friend = friendId == null ? null : friendsOf(viewerEmail).get(friendId);
+		if (friend == null) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "You can only plan with your friends.");
+		}
+		return new User[] { me, friend };
 	}
 
 	/** People matching the text by username or name; those you have mutual friends with come first. */
