@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import com.planmate.dto.Friendship;
 import com.planmate.util.PublicViews;
+import com.planmate.service.FriendSuggestionService;
 import com.planmate.service.FriendshipService;
 
 @RestController
@@ -18,6 +19,23 @@ public class FriendshipController {
 
 	@Autowired
 	private FriendshipService friendshipService;
+
+	@Autowired
+	private FriendSuggestionService suggestionService;
+
+	/** People you may know (see FriendSuggestionService): name and username only, plus why they are suggested. */
+	@GetMapping("/suggestions")
+	public ResponseEntity<?> suggestions(Principal principal) {
+		return ResponseEntity.ok(suggestionService.suggestionsFor(principal.getName()));
+	}
+
+	/** Decline a request you received, cancel one you sent, or unfriend. Only the two people involved may. */
+	@DeleteMapping("/{friendshipId}")
+	public ResponseEntity<Void> remove(@PathVariable Long friendshipId, Principal principal) {
+		return friendshipService.removeFriendship(friendshipId, principal.getName())
+				? ResponseEntity.noContent().build()
+				: ResponseEntity.notFound().build();
+	}
 
 	@PostMapping("/request/{userBId}")
 	public ResponseEntity<?> createNewFriendRequest(@PathVariable Long userBId, Principal principal) {

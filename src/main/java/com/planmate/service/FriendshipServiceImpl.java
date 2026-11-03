@@ -105,6 +105,23 @@ public class FriendshipServiceImpl implements FriendshipService {
 
 	@Transactional
 	@Override
+	public boolean removeFriendship(Long friendshipId, String callerEmail) {
+		Friendship friendship = friendshipId == null ? null : friendshipDao.getById(friendshipId);
+		if (friendship == null || callerEmail == null) {
+			return false;
+		}
+		boolean involved = (friendship.getUserA() != null && callerEmail.equals(friendship.getUserA().getEmail()))
+				|| (friendship.getUserB() != null && callerEmail.equals(friendship.getUserB().getEmail()));
+		if (!involved) {
+			return false;
+		}
+		friendshipDao.delete(friendship);
+		logger.info("Friendship removed: " + friendshipId);
+		return true;
+	}
+
+	@Transactional
+	@Override
 	public Object deleteFriendship(Friendship friendship) {
 		return friendshipDao.delete(friendship);
 	}
