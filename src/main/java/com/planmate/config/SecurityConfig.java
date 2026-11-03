@@ -40,7 +40,7 @@ public class SecurityConfig {
 					// Order matters: the first matching rule wins.
 					.antMatchers("/api/v1/auth/password").authenticated()
 					.antMatchers("/api/v1/auth/**", "/hello", "/api/health", "/error", "/swagger-ui/**", "/api-docs/**").permitAll()
-					.antMatchers("/api/v2/events/merge").authenticated()
+					.antMatchers("/api/v2/events/merge", "/api/v2/events/*/attendance").authenticated()
 					// Remaining event endpoints serve guests too; EventMongoController enforces ownership.
 					.antMatchers("/api/v2/events/**").permitAll()
 					.anyRequest().authenticated().and().sessionManagement()

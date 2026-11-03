@@ -1,6 +1,7 @@
 package com.planmate.dto2;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import lombok.Data;
@@ -24,9 +25,18 @@ public class EventDoc {
 	private String creatorId;
 
 	private List<String> participantIds = new ArrayList<>();
+	/** User ids (as strings) of people who joined this public event from the feed. */
+	private List<String> attendeeIds = new ArrayList<>();
 	private List<String> tags = new ArrayList<>();
 	private EventLocation location;
 	private Boolean isPublic;
+
+	// Response-only fields, filled per viewer (never stored)
+	@Transient
+	private String hostName;
+	/** "host", "invited" or "going": how the viewer relates to the event. */
+	@Transient
+	private String viewerRole;
 
 	public EventDoc() {
 	}
@@ -85,6 +95,30 @@ public class EventDoc {
 
 	public void setParticipantIds(List<String> participantIds) {
 		this.participantIds = participantIds;
+	}
+
+	public List<String> getAttendeeIds() {
+		return attendeeIds;
+	}
+
+	public void setAttendeeIds(List<String> attendeeIds) {
+		this.attendeeIds = attendeeIds;
+	}
+
+	public String getHostName() {
+		return hostName;
+	}
+
+	public void setHostName(String hostName) {
+		this.hostName = hostName;
+	}
+
+	public String getViewerRole() {
+		return viewerRole;
+	}
+
+	public void setViewerRole(String viewerRole) {
+		this.viewerRole = viewerRole;
 	}
 
 	public List<String> getTags() {

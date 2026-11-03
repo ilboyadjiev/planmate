@@ -13,11 +13,6 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,7 +30,9 @@ import org.springframework.web.server.ResponseStatusException;
 import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
 import com.planmate.dto2.EventDoc;
+import com.planmate.dto2.FeedEvent;
 import com.planmate.service.EventMongoService;
+import com.planmate.service.FeedService;
 import com.planmate.service.FriendshipService;
 import com.planmate.service.UserService;
 import com.planmate.util.ConstantsUtil;
@@ -48,24 +45,58 @@ import com.planmate.util.ConstantsUtil;
  * - Guests (no token) identify themselves with their guest id ("guest_..."), which acts as a bearer secret.
  *
  * Only the creator may change or delete an event. Participants (participantIds = user ids, always accepted friends
- * of the creator) see the event in their calendar and may open it, read-only.
+ * of the creator) see the event in their calendar and may open it, read-only. So do attendees (attendeeIds = user
+ * ids of people who joined a public event from the Discover feed); they are strangers to the creator, so they never
+ * get the creator's email or the other people's ids.
  */
 @RestController
 @RequestMapping("/api/v2/events")
 public class EventMongoController {
 
 	static final Pattern GUEST_ID = Pattern.compile("^guest_[A-Za-z0-9-]{10,64}$");
-	private static final int MAX_FEED_PAGE_SIZE = 50;
+	static final String ROLE_HOST = "host";
+	static final String ROLE_INVITED = "invited";
+	static final String ROLE_GOING = "going";
 
 	private final EventMongoService eventService;
 	private final UserService userService;
 	private final FriendshipService friendshipService;
+	private final FeedService feedService;
 
 	public EventMongoController(EventMongoService eventService, UserService userService,
-			FriendshipService friendshipService) {
+			FriendshipService friendshipService, FeedService feedService) {
 		this.eventService = eventService;
 		this.userService = userService;
 		this.friendshipService = friendshipService;
+		this.feedService = feedService;
+	}
+
+	/** The logged-in caller's user id; 401 for guests. */
+	private String requireUserId(Principal principal) {
+		String key = participantKey(principal);
+		if (key == null) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+		}
+		return key;
+	}
+
+	/**
+	 * Prepares an event the caller does not own for display. Invited participants are friends of the creator and
+	 * keep the creator and participant list; everyone else only gets the host's display name.
+	 */
+	private EventDoc forNonOwner(EventDoc event, String role, Map<String, User> hostCache) {
+		event.setViewerRole(role);
+		event.setHostName(feedService.hostName(event.getCreatorId(), hostCache));
+		event.setAttendeeIds(new ArrayList<>());
+		if (!ROLE_INVITED.equals(role)) {
+			event.setCreatorId(null);
+			event.setParticipantIds(new ArrayList<>());
+		}
+		return event;
+	}
+
+	private static boolean contains(List<String> ids, String id) {
+		return id != null && ids != null && ids.contains(id);
 	}
 
 	/** The caller's user id as stored in participantIds, or null for guests. */
@@ -153,6 +184,7 @@ public class EventMongoController {
 		event.setParticipantIds(validatedParticipants(event.getParticipantIds(), principal));
 		// Never let the client choose the id: save() with an existing id would overwrite someone else's event
 		event.setId(null);
+		event.setAttendeeIds(new ArrayList<>());
 		return new ResponseEntity<>(eventService.createEvent(event), HttpStatus.CREATED);
 	}
 
@@ -160,8 +192,17 @@ public class EventMongoController {
 	public ResponseEntity<EventDoc> getEventById(@PathVariable String id,
 			@RequestParam(required = false) String guestId, Principal principal) {
 		EventDoc event = findEvent(id);
-		if (Boolean.TRUE.equals(event.getIsPublic()) || isParticipant(event, principal)) {
+		String caller = principal != null ? principal.getName() : guestId;
+		if (caller != null && caller.equals(event.getCreatorId())) {
+			event.setViewerRole(ROLE_HOST);
 			return ResponseEntity.ok(event);
+		}
+		if (isParticipant(event, principal)) {
+			return ResponseEntity.ok(forNonOwner(event, ROLE_INVITED, new HashMap<>()));
+		}
+		if (Boolean.TRUE.equals(event.getIsPublic())) {
+			String role = contains(event.getAttendeeIds(), participantKey(principal)) ? ROLE_GOING : null;
+			return ResponseEntity.ok(forNonOwner(event, role, new HashMap<>()));
 		}
 		return ResponseEntity.ok(findOwnedEvent(id, resolveOwner(principal, guestId)));
 	}
@@ -192,24 +233,56 @@ public class EventMongoController {
 			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant start,
 			@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant end, Principal principal) {
 		String owner = resolveOwner(principal, creatorId);
-		return ResponseEntity.ok(eventService.getVisibleEventsInRange(owner, participantKey(principal), start, end));
+		String myId = participantKey(principal);
+		Map<String, User> hostCache = new HashMap<>();
+		List<EventDoc> events = eventService.getVisibleEventsInRange(owner, myId, start, end);
+		for (EventDoc event : events) {
+			if (owner.equals(event.getCreatorId())) {
+				event.setViewerRole(ROLE_HOST);
+			} else {
+				forNonOwner(event, contains(event.getParticipantIds(), myId) ? ROLE_INVITED : ROLE_GOING, hostCache);
+			}
+		}
+		return ResponseEntity.ok(events);
 	}
 
+	/**
+	 * Upcoming public events ranked for the caller (see FeedService). No tag means "For you": all upcoming public
+	 * events. Guests get the same feed without the friend signals.
+	 */
 	@GetMapping("/feed")
-	public ResponseEntity<?> getFeedEvents(@RequestParam(required = false) String tag,
-			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "4") int size) {
-		if (StringUtils.isBlank(tag)) {
-			return ResponseEntity.badRequest().build();
-		}
-		Pageable paging = PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), MAX_FEED_PAGE_SIZE),
-				Sort.by("startTime").ascending());
-		Page<EventDoc> pageEvents = eventService.getEventsByTag(tag, paging);
+	public ResponseEntity<FeedService.FeedPage> getFeedEvents(@RequestParam(required = false) String tag,
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "5") int size,
+			Principal principal) {
+		String viewer = principal == null ? null : principal.getName();
+		return ResponseEntity.ok(feedService.getFeed(viewer, tag, page, size));
+	}
 
-		Map<String, Object> response = new HashMap<>();
-		response.put("events", pageEvents.getContent());
-		response.put("currentPage", pageEvents.getNumber());
-		response.put("totalPages", pageEvents.getTotalPages());
-		return ResponseEntity.ok(response);
+	/** Join a public event from the feed. It then shows in the caller's calendar, read-only. */
+	@PostMapping("/{id}/attendance")
+	public ResponseEntity<FeedEvent> attend(@PathVariable String id, Principal principal) {
+		String myId = requireUserId(principal);
+		EventDoc event = findEvent(id);
+		if (!Boolean.TRUE.equals(event.getIsPublic())) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found.");
+		}
+		if (principal.getName().equals(event.getCreatorId())) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You're hosting this event.");
+		}
+		if (event.getEndTime() != null && !event.getEndTime().isAfter(Instant.now())) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This event is already over.");
+		}
+		eventService.addAttendee(id, myId);
+		return ResponseEntity.ok(feedService.toFeedEvent(findEvent(id), principal.getName()));
+	}
+
+	/** Leave an event joined from the feed. Allowed even if the event has since been made private. */
+	@DeleteMapping("/{id}/attendance")
+	public ResponseEntity<FeedEvent> leave(@PathVariable String id, Principal principal) {
+		String myId = requireUserId(principal);
+		findEvent(id);
+		eventService.removeAttendee(id, myId);
+		return ResponseEntity.ok(feedService.toFeedEvent(findEvent(id), principal.getName()));
 	}
 
 	/**

@@ -3,6 +3,7 @@ package com.planmate.controller2;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -13,21 +14,22 @@ import static org.mockito.Mockito.when;
 
 import java.security.Principal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.planmate.dao.EventMongoRepository;
 import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
 import com.planmate.dto2.EventDoc;
 import com.planmate.service.EventMongoService;
+import com.planmate.service.FeedService;
 import com.planmate.service.FriendshipService;
 import com.planmate.service.UserService;
 
@@ -51,6 +53,8 @@ class EventMongoControllerTest {
 		User u = new User();
 		u.setId(id);
 		u.setEmail(email);
+		u.setFirstName(email.substring(0, 1).toUpperCase() + email.substring(1, email.indexOf('@')));
+		u.setUsername(email.substring(0, email.indexOf('@')));
 		return u;
 	}
 
@@ -72,7 +76,8 @@ class EventMongoControllerTest {
 		service = mock(EventMongoService.class);
 		UserService userService = mock(UserService.class);
 		FriendshipService friendshipService = mock(FriendshipService.class);
-		controller = new EventMongoController(service, userService, friendshipService);
+		FeedService feedService = new FeedService(mock(EventMongoRepository.class), userService, friendshipService);
+		controller = new EventMongoController(service, userService, friendshipService, feedService);
 
 		User alice = account(1, ALICE);
 		User bob = account(2, BOB);
@@ -227,14 +232,84 @@ class EventMongoControllerTest {
 		verify(service, never()).deleteEvent(anyString());
 	}
 
+	private static EventDoc attended(String id, String creatorId, String... attendeeIds) {
+		EventDoc e = event(id, creatorId, true, "2");
+		e.setAttendeeIds(new ArrayList<>(Arrays.asList(attendeeIds)));
+		e.setEndTime(Instant.now().plusSeconds(3600));
+		return e;
+	}
+
 	@Test
-	void feedPageSizeIsCapped() {
-		when(service.getEventsByTag(anyString(), any())).thenReturn(new PageImpl<>(Collections.<EventDoc>emptyList()));
+	void rangeTellsHostsInviteesAndAttendeesApartAndHidesStrangersData() {
+		EventDoc own = attended("own", ALICE, "3");
+		EventDoc invited = event("invited", BOB, false, "1");
+		EventDoc going = attended("going", CAROL, "1", "3");
+		when(service.getVisibleEventsInRange(ALICE, "1", START, END)).thenReturn(Arrays.asList(own, invited, going));
 
-		controller.getFeedEvents("#munich", 0, 100000);
+		controller.getEventsByRange(null, START, END, user(ALICE));
 
-		ArgumentCaptor<Pageable> paging = ArgumentCaptor.forClass(Pageable.class);
-		verify(service).getEventsByTag(eq("#munich"), paging.capture());
-		assertEquals(50, paging.getValue().getPageSize());
+		assertEquals("host", own.getViewerRole());
+		assertEquals(Arrays.asList("3"), own.getAttendeeIds()); // the host sees who is coming
+
+		assertEquals("invited", invited.getViewerRole());
+		assertEquals(BOB, invited.getCreatorId()); // a friend: the organizer is shown from the friends list
+		assertEquals("Bob", invited.getHostName());
+
+		assertEquals("going", going.getViewerRole());
+		assertEquals("Carol", going.getHostName());
+		assertNull(going.getCreatorId()); // a stranger's email never reaches attendees
+		assertTrue(going.getParticipantIds().isEmpty());
+		assertTrue(going.getAttendeeIds().isEmpty());
+	}
+
+	@Test
+	void publicEventDetailsNeverExposeTheCreatorsEmail() {
+		when(service.getEventById("public")).thenReturn(attended("public", BOB, "3"));
+
+		EventDoc seen = controller.getEventById("public", null, null).getBody();
+
+		assertNull(seen.getCreatorId());
+		assertEquals("Bob", seen.getHostName());
+		assertTrue(seen.getParticipantIds().isEmpty());
+		assertTrue(seen.getAttendeeIds().isEmpty());
+	}
+
+	@Test
+	void joiningAndLeavingAPublicEvent() {
+		EventDoc concert = attended("concert", BOB);
+		when(service.getEventById("concert")).thenReturn(concert);
+
+		controller.attend("concert", user(CAROL));
+		verify(service).addAttendee("concert", "3");
+
+		controller.leave("concert", user(CAROL));
+		verify(service).removeAttendee("concert", "3");
+	}
+
+	@Test
+	void joiningIsOnlyForLoggedInUsersOnUpcomingPublicEventsOfOthers() {
+		when(service.getEventById("public")).thenReturn(attended("public", BOB));
+		when(service.getEventById("private")).thenReturn(event("private", BOB, false));
+		EventDoc over = attended("over", BOB);
+		over.setEndTime(Instant.now().minusSeconds(60));
+		when(service.getEventById("over")).thenReturn(over);
+
+		assertEquals(HttpStatus.UNAUTHORIZED, statusOf(() -> controller.attend("public", null)));
+		assertEquals(HttpStatus.NOT_FOUND, statusOf(() -> controller.attend("private", user(CAROL))));
+		assertEquals(HttpStatus.BAD_REQUEST, statusOf(() -> controller.attend("public", user(BOB))));
+		assertEquals(HttpStatus.BAD_REQUEST, statusOf(() -> controller.attend("over", user(CAROL))));
+		verify(service, never()).addAttendee(anyString(), anyString());
+	}
+
+	@Test
+	void clientCannotSeedAttendeesWhenCreating() {
+		EventDoc forged = event(null, null, true);
+		forged.setAttendeeIds(new ArrayList<>(Arrays.asList("2", "3")));
+
+		controller.createEvent(forged, user(ALICE));
+
+		ArgumentCaptor<EventDoc> saved = ArgumentCaptor.forClass(EventDoc.class);
+		verify(service).createEvent(saved.capture());
+		assertTrue(saved.getValue().getAttendeeIds().isEmpty());
 	}
 }

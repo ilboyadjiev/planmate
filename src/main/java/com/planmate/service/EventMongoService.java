@@ -1,13 +1,14 @@
 package com.planmate.service;
 
 import java.time.Instant;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import com.google.genai.Client;
@@ -20,6 +21,7 @@ import com.planmate.util.AiSummaryResult;
 public class EventMongoService {
 
 	private final EventMongoRepository repository;
+	private final MongoTemplate mongoTemplate;
 
 	@Value("${gemini.api.key}")
     private String geminiApiKey;
@@ -27,8 +29,9 @@ public class EventMongoService {
 	@Value("${gemini.api.model}")
 	private String geminiApiModel;
 
-	public EventMongoService(EventMongoRepository repository) {
+	public EventMongoService(EventMongoRepository repository, MongoTemplate mongoTemplate) {
 		this.repository = repository;
+		this.mongoTemplate = mongoTemplate;
 	}
 
 	public EventDoc createEvent(EventDoc event) {
@@ -53,6 +56,7 @@ public class EventMongoService {
 		existing.setTags(updatedData.getTags());
 		existing.setLocation(updatedData.getLocation());
 		existing.setParticipantIds(updatedData.getParticipantIds());
+		// attendeeIds is left alone: only join/leave change it
 		return repository.save(existing);
 	}
 
@@ -64,7 +68,7 @@ public class EventMongoService {
         return repository.findByCreatorIdAndStartTimeBetween(creatorId, start, end);
     }
 
-	/** Events the owner created plus, if participantId is given, events they were invited to. */
+	/** Events the owner created plus, if participantId is given, events they were invited to or joined. */
 	public List<EventDoc> getVisibleEventsInRange(String owner, String participantId, Instant start, Instant end) {
 		if (participantId == null) {
 			return getEventsByCreatorAndRange(owner, start, end);
@@ -72,12 +76,15 @@ public class EventMongoService {
 		return repository.findCreatedOrParticipatingInRange(owner, participantId, start, end);
 	}
 	
-	public List<EventDoc> getEventsByTag(String tag) {
-        return repository.findByTagsInAndIsPublicTrue(Collections.singletonList(tag));
-    }
-	
-	public Page<EventDoc> getEventsByTag(String tag, Pageable pageable) {
-		return repository.findByIsPublicTrueAndTagsContainingIgnoreCaseOrderByStartTimeAsc(tag, pageable);
+	/** Adds the user to the event's attendees. Atomic, so concurrent joins never overwrite each other. */
+	public void addAttendee(String eventId, String userId) {
+		mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(eventId)),
+				new Update().addToSet("attendeeIds", userId), EventDoc.class);
+	}
+
+	public void removeAttendee(String eventId, String userId) {
+		mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(eventId)),
+				new Update().pull("attendeeIds", userId), EventDoc.class);
 	}
 
 	public void mergeGuestEvents(String guestId, String realUserId) {
