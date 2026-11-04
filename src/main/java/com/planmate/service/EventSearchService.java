@@ -127,6 +127,8 @@ public class EventSearchService {
 		}
 
 		FeedService.Viewer viewer = feedService.viewer(viewerEmail);
+		// Friends who keep the events they go to to themselves: their name must not find those events
+		feedService.rememberGoingVisibility(viewer, viewer.friendsById.values());
 		Names names = new Names(words, viewer, viewer.id == null ? Collections.emptyList()
 				: friendGroupService.groupsOf(viewerEmail));
 		List<EventDoc> candidates = mongo.find(candidateQuery(words, viewer, names, now), EventDoc.class);
@@ -157,9 +159,14 @@ public class EventSearchService {
 		final Map<String, Set<String>> groups = new HashMap<>();
 		/** friend email -> id, to recognise friends hosting (events store the creator's email) */
 		final Map<String, String> friendIdByEmail = new HashMap<>();
+		/** ids of friends who keep the events they go to to themselves (going visibility only_me) */
+		final Set<String> goingHidden = new HashSet<>();
 
 		Names(List<String> words, FeedService.Viewer viewer, List<FriendGroup> myGroups) {
 			viewer.friendsById.forEach((id, friend) -> {
+				if (viewer.hidesGoing.getOrDefault(friend.getId(), false)) {
+					goingHidden.add(id);
+				}
 				if (friend.getEmail() != null) {
 					friendIdByEmail.put(friend.getEmail(), id);
 				}
@@ -209,8 +216,13 @@ public class EventSearchService {
 					.filter(e -> friendIds.contains(e.getValue())).map(Map.Entry::getKey)
 					.collect(Collectors.toList());
 			matches.add(Criteria.where("creatorId").in(emails));
-			matches.add(Criteria.where("attendeeIds").in(friendIds));
-			for (String id : friendIds) {
+			// Events a friend goes to, unless they keep that to themselves (hosting is always public)
+			Set<String> goingVisible = new HashSet<>(friendIds);
+			goingVisible.removeAll(names.goingHidden);
+			if (!goingVisible.isEmpty()) {
+				matches.add(Criteria.where("attendeeIds").in(goingVisible));
+			}
+			for (String id : goingVisible) {
 				matches.add(Criteria.where("responses." + id).is("accepted"));
 			}
 		}
@@ -280,7 +292,8 @@ public class EventSearchService {
 					}
 				});
 				Set<String> friends = names.friends.getOrDefault(word, Collections.emptySet());
-				if (friends.stream().anyMatch(id -> going.contains(id) || id.equals(friendHost))) {
+				if (friends.stream().anyMatch(id -> (going.contains(id) && !names.goingHidden.contains(id))
+						|| id.equals(friendHost))) {
 					found.put("friend", PERSON);
 				}
 				Set<String> groups = names.groups.getOrDefault(word, Collections.emptySet());
@@ -378,7 +391,8 @@ public class EventSearchService {
 			return 0;
 		}
 		Set<String> going = FeedService.goingIds(event);
-		long friendsGoing = going.stream().filter(viewer.friendsById::containsKey).count();
+		long friendsGoing = going.stream()
+				.filter(id -> viewer.friendsById.containsKey(id) && !names.goingHidden.contains(id)).count();
 		boolean friendHosting = names.friendIdByEmail.containsKey(event.getCreatorId());
 		boolean mine = viewer.email.equals(event.getCreatorId()) || going.contains(viewer.id)
 				|| (event.getParticipantIds() != null && event.getParticipantIds().contains(viewer.id));

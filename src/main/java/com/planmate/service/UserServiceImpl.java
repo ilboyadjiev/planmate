@@ -13,6 +13,7 @@ import com.planmate.dao.AvatarDao;
 import com.planmate.dao.EventDAO;
 import com.planmate.dao.FriendshipDao;
 import com.planmate.dao.UserDAO;
+import com.planmate.dao.UserSettingsDao;
 import com.planmate.dto.Contact;
 import com.planmate.dto.User;
 import com.planmate.exception.BusinessLogicException;
@@ -31,6 +32,9 @@ public class UserServiceImpl implements UserService {
 
 	@Autowired
 	private AvatarDao avatarDao;
+
+	@Autowired
+	private UserSettingsDao settingsDao;
 
 	@Transactional
 	@Override
@@ -157,8 +161,9 @@ public class UserServiceImpl implements UserService {
 			friendshipDao.getFriendshipsListByUserEmail(managedUser.getEmail())
 					.forEach(friendship -> friendshipDao.delete(friendship));
 			
-			// the profile picture, then the user
+			// the profile picture and settings, then the user
 			avatarDao.delete(managedUser.getId());
+			settingsDao.delete(managedUser.getId());
 			userDAO.deleteUserById(managedUser.getId());
 		} catch (Exception e) {
 			throw new BusinessLogicException("User " + user.getEmail() + " could not be deleted", null,

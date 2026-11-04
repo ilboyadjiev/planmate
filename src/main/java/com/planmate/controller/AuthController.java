@@ -35,6 +35,7 @@ import com.planmate.dto.User;
 import com.planmate.exception.BusinessLogicException;
 import com.planmate.service.UserService;
 import com.planmate.util.AuthenticationRequest;
+import com.planmate.service.UserSettingsService;
 import com.planmate.util.ChangePasswordRequest;
 import com.planmate.util.GoogleAuthRequest;
 import com.planmate.util.JwtResponse;
@@ -48,6 +49,9 @@ import io.swagger.v3.oas.annotations.Operation;
 public class AuthController {
 
 	private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+	static final int MIN_PASSWORD_LENGTH = 8;
+	/** BCrypt only uses the first 72 bytes */
+	static final int MAX_PASSWORD_LENGTH = 72;
 
 	@Autowired
 	private AuthenticationManager authenticationManager;
@@ -161,14 +165,33 @@ public class AuthController {
 		if (currentUser == null) {
 			throw new BusinessLogicException("User not found.", null, HttpStatus.NOT_FOUND);
 		}
-		if (!passwordEncoder.matches(request.getCurrentPassword(), currentUser.getPassword())) {
-			throw new BusinessLogicException("Current password is incorrect.", null, HttpStatus.UNAUTHORIZED);
+		if (!UserSettingsService.hasPasswordLogin(currentUser)) {
+			throw new BusinessLogicException("You sign in with Google, so there is no PlanMate password to change.",
+					null, HttpStatus.BAD_REQUEST);
+		}
+		// 400, not 401: the app treats 401 as an expired login and would try to refresh it
+		if (request.getCurrentPassword() == null
+				|| !passwordEncoder.matches(request.getCurrentPassword(), currentUser.getPassword())) {
+			throw new BusinessLogicException("Your current password is incorrect.", null, HttpStatus.BAD_REQUEST);
+		}
+		String newPassword = request.getNewPassword();
+		if (newPassword == null || newPassword.length() < MIN_PASSWORD_LENGTH) {
+			throw new BusinessLogicException("The new password needs at least " + MIN_PASSWORD_LENGTH + " characters.",
+					null, HttpStatus.BAD_REQUEST);
+		}
+		if (newPassword.length() > MAX_PASSWORD_LENGTH) {
+			throw new BusinessLogicException("The new password can be at most " + MAX_PASSWORD_LENGTH + " characters.",
+					null, HttpStatus.BAD_REQUEST);
+		}
+		if (passwordEncoder.matches(newPassword, currentUser.getPassword())) {
+			throw new BusinessLogicException("The new password is the same as your current one.", null,
+					HttpStatus.BAD_REQUEST);
 		}
 
 		// Store only the hash (changePassword persists the value it is given)
-		userService.changePassword(currentUser, passwordEncoder.encode(request.getNewPassword()));
+		userService.changePassword(currentUser, passwordEncoder.encode(newPassword));
 
-		return new ResponseEntity<>("Password updated successfully.", HttpStatus.OK);
+		return ResponseEntity.ok(Map.of("message", "Password updated successfully."));
 	}
 
 	@PostMapping("/google")
@@ -211,6 +234,7 @@ public class AuthController {
 
 					// a random, unguessable password since they use Google to log in
 					user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+					user.setGoogleAccount(true);
 					user.setRole("ROLE_USER");
 
 					user = userService.createUser(user);

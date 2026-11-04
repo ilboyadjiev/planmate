@@ -37,12 +37,14 @@ public class FriendSuggestionService {
 	private final UserService userService;
 	private final FriendshipService friendshipService;
 	private final FriendGroupService friendGroupService;
+	private final UserSettingsService settings;
 
 	public FriendSuggestionService(UserService userService, FriendshipService friendshipService,
-			FriendGroupService friendGroupService) {
+			FriendGroupService friendGroupService, UserSettingsService settings) {
 		this.userService = userService;
 		this.friendshipService = friendshipService;
 		this.friendGroupService = friendGroupService;
+		this.settings = settings;
 	}
 
 	private static final class Candidate {
@@ -97,6 +99,10 @@ public class FriendSuggestionService {
 				}
 			}
 		}
+
+		// People who turned suggestions off are never suggested
+		Map<Long, com.planmate.dto.UserSettings> theirSettings = settings.of(candidates.keySet());
+		candidates.keySet().removeIf(id -> !theirSettings.get(id).isShowInSuggestions());
 
 		String myCity = cityOf(me);
 		candidates.values().forEach(c -> c.sameCity = myCity != null && myCity.equals(cityOf(c.user)));

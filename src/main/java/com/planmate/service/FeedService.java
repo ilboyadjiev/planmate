@@ -2,9 +2,11 @@ package com.planmate.service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -14,6 +16,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -27,6 +30,7 @@ import com.planmate.dao.EventMongoRepository;
 import com.planmate.dto.FriendGroup;
 import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
+import com.planmate.dto.UserSettings;
 import com.planmate.dto2.EventDoc;
 import com.planmate.dto2.FeedEvent;
 import com.planmate.util.CityTags;
@@ -100,18 +104,39 @@ public class FeedService {
 		}
 	}
 
-	/** Who is looking at the feed. Guests have no id and no friends. */
+	/** Who is looking at the feed. Guests have no id, no friends and no topic settings. */
 	static final class Viewer {
 		static final Viewer GUEST = new Viewer(null, null, Collections.emptyMap());
 
 		final String email;
 		final String id;
 		final Map<String, User> friendsById;
+		/** Topics the viewer likes (ranked higher) and hides (left out of "For you" and "Around me"). */
+		final Set<String> likedTags;
+		final Set<String> hiddenTags;
+		/** Per request: whether someone keeps the events they go to to themselves (going visibility only_me). */
+		final Map<Long, Boolean> hidesGoing = new HashMap<>();
 
 		Viewer(String email, String id, Map<String, User> friendsById) {
+			this(email, id, friendsById, Collections.emptySet(), Collections.emptySet());
+		}
+
+		Viewer(String email, String id, Map<String, User> friendsById, Set<String> likedTags, Set<String> hiddenTags) {
 			this.email = email;
 			this.id = id;
 			this.friendsById = friendsById;
+			this.likedTags = likedTags;
+			this.hiddenTags = hiddenTags;
+		}
+
+		boolean hidesTopicOf(EventDoc event) {
+			return !hiddenTags.isEmpty() && event.getTags() != null
+					&& event.getTags().stream().anyMatch(hiddenTags::contains);
+		}
+
+		long likedTopicsOf(EventDoc event) {
+			return likedTags.isEmpty() || event.getTags() == null ? 0
+					: event.getTags().stream().distinct().filter(likedTags::contains).count();
 		}
 
 		boolean isFriendEmail(String email) {
@@ -123,13 +148,22 @@ public class FeedService {
 	private final UserService userService;
 	private final FriendshipService friendshipService;
 	private final FriendGroupService friendGroupService;
+	private final UserSettingsService settings;
 
+	/** Without settings: every viewer and person has the default settings (for tests). */
 	public FeedService(EventMongoRepository repository, UserService userService,
 			FriendshipService friendshipService, FriendGroupService friendGroupService) {
+		this(repository, userService, friendshipService, friendGroupService, UserSettingsService.DEFAULTS_ONLY);
+	}
+
+	@Autowired
+	public FeedService(EventMongoRepository repository, UserService userService,
+			FriendshipService friendshipService, FriendGroupService friendGroupService, UserSettingsService settings) {
 		this.repository = repository;
 		this.userService = userService;
 		this.friendshipService = friendshipService;
 		this.friendGroupService = friendGroupService;
+		this.settings = settings;
 	}
 
 	/**
@@ -172,7 +206,8 @@ public class FeedService {
 		Pageable candidates = candidates();
 		List<EventDoc> events = normalizedTag == null ? repository.findUpcomingPublic(now, candidates)
 				: repository.findUpcomingPublicWithTag(now, normalizedTag, candidates);
-		return rankedPage(events, viewer(viewerEmail), page, size, now);
+		// Hidden topics stay out of "For you"; choosing a tag chip still shows that tag's events
+		return rankedPage(events, viewer(viewerEmail), page, size, now, normalizedTag == null);
 	}
 
 	/**
@@ -195,7 +230,7 @@ public class FeedService {
 		String quoted = Pattern.quote(city);
 		List<EventDoc> events = repository.findUpcomingPublicInCity(now, "^" + quoted + "$",
 				"(^|[^\\p{L}])" + quoted + "($|[^\\p{L}])", cityTag(city), candidates());
-		FeedPage ranked = rankedPage(events, viewer(viewerEmail), page, size, now);
+		FeedPage ranked = rankedPage(events, viewer(viewerEmail), page, size, now, true);
 		return new FeedPage(ranked.getEvents(), ranked.getPage(), ranked.isHasMore(), city);
 	}
 
@@ -208,11 +243,13 @@ public class FeedService {
 		return PageRequest.of(0, MAX_CANDIDATES, Sort.by("startTime").ascending());
 	}
 
-	private FeedPage rankedPage(List<EventDoc> events, Viewer viewer, int page, int size, Instant now) {
+	private FeedPage rankedPage(List<EventDoc> events, Viewer viewer, int page, int size, Instant now,
+			boolean hideTopics) {
 		int pageSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
 		int pageIndex = Math.max(0, page);
 
 		List<EventDoc> ranked = events.stream()
+				.filter(e -> !hideTopics || !viewer.hidesTopicOf(e))
 				.sorted(Comparator.comparingDouble((EventDoc e) -> -score(e, viewer, now))
 						.thenComparing(EventDoc::getStartTime, Comparator.nullsLast(Comparator.naturalOrder()))
 						.thenComparing(EventDoc::getId, Comparator.nullsLast(Comparator.naturalOrder())))
@@ -270,7 +307,9 @@ public class FeedService {
 			long friendsGoing = attendees.stream().filter(viewer.friendsById::containsKey).count();
 			social = 5.0 * friendsGoing + (viewer.isFriendEmail(event.getCreatorId()) ? 5.0 : 0);
 		}
-		return social + popularity + soonness;
+		// Each liked topic counts like a lot of popularity, but less than a friend going (at most two topics)
+		double topics = 2.0 * Math.min(2, viewer.likedTopicsOf(event));
+		return social + topics + popularity + soonness;
 	}
 
 	/**
@@ -307,14 +346,30 @@ public class FeedService {
 		card.setMyResponse(myResponse);
 		card.setAttendeeCount(going.size());
 		card.setGoing(viewer.id != null && going.contains(viewer.id));
-		// Only the viewer's friends (and fellow group members in a group feed) are named; others are just counted
-		card.setFriendsGoing(going.stream().filter(id -> !id.equals(viewer.id))
+		// Only the viewer's friends (and fellow group members in a group feed) are named; others are just counted.
+		// People who keep the events they go to to themselves are only counted too.
+		List<User> named = going.stream().filter(id -> !id.equals(viewer.id))
 				.map(id -> viewer.friendsById.containsKey(id) ? viewer.friendsById.get(id) : knownPeople.get(id))
 				.filter(Objects::nonNull)
+				.collect(Collectors.toList());
+		rememberGoingVisibility(viewer, named);
+		card.setFriendsGoing(named.stream()
+				.filter(f -> !viewer.hidesGoing.getOrDefault(f.getId(), false))
 				.map(f -> new FeedEvent.Friend(f.getId(), f.getFirstName(), f.getLastName(), f.getUsername(),
 						f.getAvatarKey()))
 				.collect(Collectors.toList()));
 		return card;
+	}
+
+	/** Looks up, once per request, which of these people keep the events they go to to themselves. */
+	void rememberGoingVisibility(Viewer viewer, Collection<User> people) {
+		List<Long> unknown = people.stream().map(User::getId)
+				.filter(id -> id != null && !viewer.hidesGoing.containsKey(id)).distinct().collect(Collectors.toList());
+		if (unknown.isEmpty()) {
+			return;
+		}
+		settings.of(unknown).forEach((id, s) -> viewer.hidesGoing.put(id,
+				UserSettings.VISIBLE_ONLY_ME.equals(s.getGoingVisibility())));
 	}
 
 	Viewer viewer(String email) {
@@ -336,7 +391,9 @@ public class FeedService {
 				friends.put(String.valueOf(other.getId()), other);
 			}
 		}
-		return new Viewer(email, String.valueOf(me.getId()), friends);
+		UserSettings mine = settings.of(me.getId());
+		return new Viewer(email, String.valueOf(me.getId()), friends,
+				new HashSet<>(UserSettingsService.likedTags(mine)), new HashSet<>(UserSettingsService.hiddenTags(mine)));
 	}
 
 	private User lookupHost(String creatorId, Map<String, User> hostCache) {

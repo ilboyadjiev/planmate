@@ -20,12 +20,13 @@ import com.planmate.dao.FriendGroupDao;
 import com.planmate.dto.FriendGroup;
 import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
+import com.planmate.dto.UserSettings;
 import com.planmate.util.ConstantsUtil;
 
 /**
  * Friend groups. There is no owner; the rules are the same for every member:
  * - any member can rename the group, add members and remove members,
- * - you can only add your own accepted friends,
+ * - you can only add your own accepted friends, and only those who allow being added to groups (settings),
  * - anyone can leave, and a group without members is deleted,
  * - people added to a group are invited to the group's upcoming events (not to past or ongoing ones).
  * Non-members cannot see a group at all (404, so group ids cannot be probed).
@@ -40,13 +41,15 @@ public class FriendGroupService {
 	private final UserService userService;
 	private final FriendshipService friendshipService;
 	private final EventMongoService eventService;
+	private final UserSettingsService settings;
 
 	public FriendGroupService(FriendGroupDao groupDao, UserService userService, FriendshipService friendshipService,
-			EventMongoService eventService) {
+			EventMongoService eventService, UserSettingsService settings) {
 		this.groupDao = groupDao;
 		this.userService = userService;
 		this.friendshipService = friendshipService;
 		this.eventService = eventService;
+		this.settings = settings;
 	}
 
 	public List<FriendGroup> groupsOf(String email) {
@@ -118,6 +121,15 @@ public class FriendGroupService {
 		if (!friends.keySet().containsAll(wanted)) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You can only add your friends.");
 		}
+		List<String> unwilling = settings.of(wanted).values().stream()
+				.filter(s -> UserSettings.GROUPS_NOBODY.equals(s.getGroupAdds()))
+				.map(s -> displayName(friends.get(s.getUserId())))
+				.sorted()
+				.collect(Collectors.toList());
+		if (!unwilling.isEmpty()) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, String.join(", ", unwilling)
+					+ (unwilling.size() == 1 ? " doesn't" : " don't") + " want to be added to groups.");
+		}
 		if (group.getMembers().size() + wanted.size() > MAX_MEMBERS) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
 					"A group can have at most " + MAX_MEMBERS + " members.");
@@ -125,6 +137,13 @@ public class FriendGroupService {
 		List<User> added = wanted.stream().map(friends::get).collect(Collectors.toList());
 		group.getMembers().addAll(added);
 		return added;
+	}
+
+	private static String displayName(User user) {
+		if (user == null) {
+			return "Someone";
+		}
+		return StringUtils.firstNonBlank(user.getFirstName(), user.getUsername(), "Someone");
 	}
 
 	private Map<Long, User> acceptedFriends(User me) {

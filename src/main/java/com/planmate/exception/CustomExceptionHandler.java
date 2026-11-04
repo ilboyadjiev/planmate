@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.server.ResponseStatusException;
 
 @ControllerAdvice
 public class CustomExceptionHandler {
@@ -46,5 +47,21 @@ public class CustomExceptionHandler {
 		body.put("status", HttpStatus.PAYLOAD_TOO_LARGE.value());
 		body.put("error", "The picture is too large.");
 		return new ResponseEntity<>(body, HttpStatus.PAYLOAD_TOO_LARGE);
+	}
+
+	/**
+	 * Refusals the services raise on purpose ("You can only add your friends.", "Bob doesn't want to be added to
+	 * groups."): their reason is written for people, so it is sent as both error and message. Unexpected exceptions
+	 * keep Spring's default body, which leaves internal details out.
+	 */
+	@ExceptionHandler(ResponseStatusException.class)
+	public ResponseEntity<Object> handleResponseStatus(ResponseStatusException ex) {
+		Map<String, Object> body = new HashMap<>();
+		body.put("timestamp", LocalDateTime.now());
+		body.put("status", ex.getStatus().value());
+		String reason = ex.getReason() != null ? ex.getReason() : ex.getStatus().getReasonPhrase();
+		body.put("error", reason);
+		body.put("message", reason);
+		return new ResponseEntity<>(body, ex.getResponseHeaders(), ex.getStatus());
 	}
 }

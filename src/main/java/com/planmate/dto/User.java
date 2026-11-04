@@ -66,6 +66,14 @@ public class User implements Serializable {
 	@JsonProperty(access = JsonProperty.Access.READ_ONLY)
 	private String avatarKey;
 
+	/**
+	 * True for accounts made through "Sign in with Google": they have a random password nobody knows, so changing
+	 * it makes no sense. Null for accounts made before this was recorded (see UserSettingsService.hasPasswordLogin).
+	 */
+	@Column(name = "google_account")
+	@JsonIgnore
+	private Boolean googleAccount;
+
 	@OneToOne(cascade = CascadeType.ALL)
 	@JoinColumn(name = "contact_id", referencedColumnName = "id")
 	// @ApiModelProperty(notes = "The user's contact information")
@@ -153,6 +161,16 @@ public class User implements Serializable {
 
 	public void setAvatarKey(String avatarKey) {
 		this.avatarKey = avatarKey;
+	}
+
+	@JsonIgnore
+	public Boolean getGoogleAccount() {
+		return googleAccount;
+	}
+
+	@JsonIgnore
+	public void setGoogleAccount(Boolean googleAccount) {
+		this.googleAccount = googleAccount;
 	}
 
 	public List<Event> getCreatedEvents() {

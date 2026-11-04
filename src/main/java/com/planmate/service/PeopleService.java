@@ -29,7 +29,7 @@ import com.planmate.util.PublicViews;
  * contact details.
  *
  * A profile shows mutual friends, shared groups and the person's upcoming public events. Public events they joined
- * are only shown to their friends (and themselves), like everywhere else in the app.
+ * are shown to their friends (and themselves) unless they chose otherwise in their settings (going visibility).
  */
 @Service
 public class PeopleService {
@@ -44,16 +44,18 @@ public class PeopleService {
 	private final EventMongoRepository events;
 	private final FeedService feedService;
 	private final AvailabilityService availability;
+	private final UserSettingsService settings;
 
 	public PeopleService(UserService userService, FriendshipService friendshipService,
 			FriendGroupService friendGroupService, EventMongoRepository events, FeedService feedService,
-			AvailabilityService availability) {
+			AvailabilityService availability, UserSettingsService settings) {
 		this.userService = userService;
 		this.friendshipService = friendshipService;
 		this.friendGroupService = friendGroupService;
 		this.events = events;
 		this.feedService = feedService;
 		this.availability = availability;
+		this.settings = settings;
 	}
 
 	/**
@@ -91,15 +93,24 @@ public class PeopleService {
 		return new User[] { me, friend };
 	}
 
-	/** People matching the text by username or name; those you have mutual friends with come first. */
+	/**
+	 * People matching the text by username or name; those you have mutual friends with come first. People who
+	 * turned off "Find me by name" only show up for their friends.
+	 */
 	public List<Map<String, Object>> search(String viewerEmail, String term) {
 		String text = StringUtils.normalizeSpace(term);
 		if (viewerEmail == null || text == null || text.length() < MIN_SEARCH_LENGTH) {
 			return new ArrayList<>();
 		}
 		Map<Long, User> myFriends = friendsOf(viewerEmail);
+		List<User> found = userService.searchUsernames(viewerEmail, text);
+		Map<Long, com.planmate.dto.UserSettings> theirSettings = settings
+				.of(found.stream().map(User::getId).collect(Collectors.toList()));
 		List<Map<String, Object>> results = new ArrayList<>();
-		for (User person : userService.searchUsernames(viewerEmail, text)) {
+		for (User person : found) {
+			if (!myFriends.containsKey(person.getId()) && !theirSettings.get(person.getId()).isSearchable()) {
+				continue;
+			}
 			List<User> mutual = mutualFriends(myFriends, person);
 			Map<String, Object> view = new LinkedHashMap<>(PublicViews.person(person));
 			view.put("mutualFriendCount", mutual.size());
@@ -140,8 +151,9 @@ public class PeopleService {
 		PageRequest soonest = PageRequest.of(0, MAX_PROFILE_EVENTS, Sort.by("startTime").ascending());
 		profile.put("hosting", events.findUpcomingPublicHostedBy(person.getEmail(), now, soonest).stream()
 				.map(e -> feedService.toFeedEvent(e, viewerEmail)).collect(Collectors.toList()));
-		// Which public events someone joined is only shared with their friends
-		profile.put("going", friend || self
+		// Which public events someone joined: their friends by default, or as they chose in their settings
+		boolean showGoing = UserSettingsService.showsGoingTo(settings.of(person.getId()), self, friend);
+		profile.put("going", showGoing
 				? events.findUpcomingPublicAttendedBy(String.valueOf(person.getId()), now, soonest).stream()
 						.map(e -> feedService.toFeedEvent(e, viewerEmail)).collect(Collectors.toList())
 				: new ArrayList<>());
