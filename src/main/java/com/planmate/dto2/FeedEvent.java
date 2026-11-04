@@ -3,6 +3,8 @@ package com.planmate.dto2;
 import java.time.Instant;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 /**
  * A public event as shown on a Discover feed card. Built per viewer and deliberately small: it never carries
  * the creator's email or the ids of people who are not the viewer's friends.
@@ -87,6 +89,21 @@ public class FeedEvent {
 	private boolean invited;
 	/** The viewer's answer to the invitation: accepted, maybe, declined or pending; null when not invited. */
 	private String myResponse;
+	/**
+	 * Search results only: why the event matched, e.g. ["title", "location", "friend"]. Possible values: title,
+	 * tags, location, description, friend (a friend with that name hosts or goes), group (one of your groups with
+	 * that name is invited). Null (and left out of the JSON) in the feed.
+	 */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private List<String> matchedBy;
+
+	public List<String> getMatchedBy() {
+		return matchedBy;
+	}
+
+	public void setMatchedBy(List<String> matchedBy) {
+		this.matchedBy = matchedBy;
+	}
 
 	public boolean isInvited() {
 		return invited;

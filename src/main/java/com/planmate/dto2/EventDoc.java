@@ -4,6 +4,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import lombok.Data;
 
 import java.time.Instant;
@@ -44,6 +46,12 @@ public class EventDoc {
 	private String cityTag;
 	private EventLocation location;
 	private Boolean isPublic;
+	/**
+	 * The words this event can be found by (see SearchText.terms), indexed for search. Filled in automatically on
+	 * every save (SearchTermsListener); never sent to or accepted from clients.
+	 */
+	@JsonIgnore
+	private List<String> searchTerms = new ArrayList<>();
 
 	// Response-only fields, filled per viewer (never stored)
 	@Transient
@@ -196,6 +204,16 @@ public class EventDoc {
 
 	public void setLocation(EventLocation location) {
 		this.location = location;
+	}
+
+	@JsonIgnore
+	public List<String> getSearchTerms() {
+		return searchTerms;
+	}
+
+	@JsonIgnore
+	public void setSearchTerms(List<String> searchTerms) {
+		this.searchTerms = searchTerms;
 	}
 
 	public Boolean getIsPublic() {

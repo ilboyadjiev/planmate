@@ -76,7 +76,7 @@ public final class CityTags {
 	}
 
 	/** Lower case, accents removed (ü -> u, ß -> ss), whitespace collapsed. */
-	static String normalise(String text) {
+	public static String normalise(String text) {
 		String lower = StringUtils.normalizeSpace(text).toLowerCase().replace("ß", "ss");
 		return Normalizer.normalize(lower, Normalizer.Form.NFD).replaceAll("\\p{M}", "");
 	}

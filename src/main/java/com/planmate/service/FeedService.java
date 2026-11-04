@@ -22,6 +22,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.planmate.dao.EventMongoRepository;
 import com.planmate.dto.FriendGroup;
 import com.planmate.dto.Friendship;
@@ -58,8 +59,11 @@ public class FeedService {
 		private final boolean hasMore;
 		/** "Around me" only: the city the events are for, or null when the user has no city in their profile. */
 		private final String city;
+		/** Search only: how many events matched in total. Null (and left out of the JSON) in the feed. */
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Integer total;
 
-		FeedPage(List<FeedEvent> events, int page, boolean hasMore) {
+		public FeedPage(List<FeedEvent> events, int page, boolean hasMore) {
 			this(events, page, hasMore, null);
 		}
 
@@ -72,6 +76,15 @@ public class FeedService {
 
 		public String getCity() {
 			return city;
+		}
+
+		public Integer getTotal() {
+			return total;
+		}
+
+		public FeedPage withTotal(int total) {
+			this.total = total;
+			return this;
 		}
 
 		public List<FeedEvent> getEvents() {
@@ -264,22 +277,15 @@ public class FeedService {
 	 * knownPeople: besides the viewer's friends, people the viewer may see by name on this card (fellow group
 	 * members in a group's feed). Everyone else going is only counted.
 	 */
-	private FeedEvent toFeedEvent(EventDoc event, Viewer viewer, Map<String, User> hostCache,
+	FeedEvent toFeedEvent(EventDoc event, Viewer viewer, Map<String, User> hostCache,
 			Map<String, User> knownPeople) {
-		List<String> attendees = attendeesOf(event);
 		String creatorId = event.getCreatorId();
 		Map<String, String> responses = event.getResponses() == null ? Collections.emptyMap() : event.getResponses();
 		boolean invited = viewer.id != null && event.getParticipantIds() != null
 				&& event.getParticipantIds().contains(viewer.id);
 		String myResponse = invited ? responses.getOrDefault(viewer.id, "pending") : null;
 
-		// Going = joined from the feed, or accepted an invitation
-		Set<String> going = new LinkedHashSet<>(attendees);
-		responses.forEach((userId, answer) -> {
-			if ("accepted".equals(answer)) {
-				going.add(userId);
-			}
-		});
+		Set<String> going = goingIds(event);
 
 		FeedEvent card = new FeedEvent();
 		card.setId(event.getId());
@@ -309,7 +315,7 @@ public class FeedService {
 		return card;
 	}
 
-	private Viewer viewer(String email) {
+	Viewer viewer(String email) {
 		if (email == null) {
 			return Viewer.GUEST;
 		}
@@ -345,6 +351,19 @@ public class FeedService {
 			return fullName;
 		}
 		return StringUtils.isBlank(user.getUsername()) ? UNKNOWN_HOST : user.getUsername();
+	}
+
+	/** User ids of everyone going: joined from the feed, or accepted an invitation. */
+	static Set<String> goingIds(EventDoc event) {
+		Set<String> going = new LinkedHashSet<>(attendeesOf(event));
+		if (event.getResponses() != null) {
+			event.getResponses().forEach((userId, answer) -> {
+				if ("accepted".equals(answer)) {
+					going.add(userId);
+				}
+			});
+		}
+		return going;
 	}
 
 	private static List<String> attendeesOf(EventDoc event) {
