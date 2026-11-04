@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import com.planmate.dao.AvatarDao;
 import com.planmate.dao.EventDAO;
 import com.planmate.dao.FriendshipDao;
 import com.planmate.dao.UserDAO;
@@ -27,6 +28,9 @@ public class UserServiceImpl implements UserService {
 
 	@Autowired
 	private EventDAO eventDAO;
+
+	@Autowired
+	private AvatarDao avatarDao;
 
 	@Transactional
 	@Override
@@ -153,7 +157,8 @@ public class UserServiceImpl implements UserService {
 			friendshipDao.getFriendshipsListByUserEmail(managedUser.getEmail())
 					.forEach(friendship -> friendshipDao.delete(friendship));
 			
-			// delete the user
+			// the profile picture, then the user
+			avatarDao.delete(managedUser.getId());
 			userDAO.deleteUserById(managedUser.getId());
 		} catch (Exception e) {
 			throw new BusinessLogicException("User " + user.getEmail() + " could not be deleted", null,

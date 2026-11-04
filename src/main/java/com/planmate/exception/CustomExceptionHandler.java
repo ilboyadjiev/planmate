@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @ControllerAdvice
 public class CustomExceptionHandler {
@@ -35,5 +36,15 @@ public class CustomExceptionHandler {
         	body.put("Caused by", ex.getCause().getMessage());
         }
         return new ResponseEntity<>(body, errorStatus);
+	}
+
+	/** An upload over spring.servlet.multipart.max-file-size: 413 with a readable message, not a 500. */
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	public ResponseEntity<Object> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
+		Map<String, Object> body = new HashMap<>();
+		body.put("timestamp", LocalDateTime.now());
+		body.put("status", HttpStatus.PAYLOAD_TOO_LARGE.value());
+		body.put("error", "The picture is too large.");
+		return new ResponseEntity<>(body, HttpStatus.PAYLOAD_TOO_LARGE);
 	}
 }

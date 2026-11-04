@@ -20,7 +20,7 @@ public final class PublicViews {
 	private PublicViews() {
 	}
 
-	/** Name and username: what anyone logged in may see, e.g. in search results. */
+	/** Name, username and profile picture key: what anyone logged in may see, e.g. in search results. */
 	public static Map<String, Object> person(User user) {
 		if (user == null) {
 			return null;
@@ -30,6 +30,9 @@ public final class PublicViews {
 		view.put("username", user.getUsername());
 		view.put("firstName", user.getFirstName());
 		view.put("lastName", user.getLastName());
+		if (user.getAvatarKey() != null) {
+			view.put("avatarKey", user.getAvatarKey());
+		}
 		return view;
 	}
 

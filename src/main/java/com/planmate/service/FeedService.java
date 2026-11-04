@@ -298,8 +298,9 @@ public class FeedService {
 
 		boolean hosting = viewer.email != null && viewer.email.equals(creatorId);
 		User creator = creatorId == null || creatorId.startsWith("guest_") ? null : lookupHost(creatorId, hostCache);
-		card.setHost(new FeedEvent.Host(hostName(creatorId, hostCache), creator == null ? null : creator.getUsername(),
-				viewer.isFriendEmail(creatorId), hosting));
+		card.setHost(new FeedEvent.Host(creator == null ? null : creator.getId(), hostName(creatorId, hostCache),
+				creator == null ? null : creator.getUsername(), viewer.isFriendEmail(creatorId), hosting,
+				creator == null ? null : creator.getAvatarKey()));
 		card.setHosting(hosting);
 
 		card.setInvited(invited);
@@ -310,7 +311,8 @@ public class FeedService {
 		card.setFriendsGoing(going.stream().filter(id -> !id.equals(viewer.id))
 				.map(id -> viewer.friendsById.containsKey(id) ? viewer.friendsById.get(id) : knownPeople.get(id))
 				.filter(Objects::nonNull)
-				.map(f -> new FeedEvent.Friend(f.getId(), f.getFirstName(), f.getLastName(), f.getUsername()))
+				.map(f -> new FeedEvent.Friend(f.getId(), f.getFirstName(), f.getLastName(), f.getUsername(),
+						f.getAvatarKey()))
 				.collect(Collectors.toList()));
 		return card;
 	}

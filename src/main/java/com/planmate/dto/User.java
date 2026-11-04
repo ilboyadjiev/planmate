@@ -58,6 +58,14 @@ public class User implements Serializable {
 	// @ApiModelProperty(notes = "A custom display name")
 	private String username;
 
+	/**
+	 * Names the current profile picture (null: none). Random and changed on every upload, so the picture's URL
+	 * (/api/v1/avatars/{id}/{key}) can be cached forever and cannot be guessed. Set only by AvatarService.
+	 */
+	@Column(name = "avatar_key", length = 32)
+	@JsonProperty(access = JsonProperty.Access.READ_ONLY)
+	private String avatarKey;
+
 	@OneToOne(cascade = CascadeType.ALL)
 	@JoinColumn(name = "contact_id", referencedColumnName = "id")
 	// @ApiModelProperty(notes = "The user's contact information")
@@ -137,6 +145,14 @@ public class User implements Serializable {
 
 	public void setUsername(String username) {
 		this.username = username;
+	}
+
+	public String getAvatarKey() {
+		return avatarKey;
+	}
+
+	public void setAvatarKey(String avatarKey) {
+		this.avatarKey = avatarKey;
 	}
 
 	public List<Event> getCreatedEvents() {

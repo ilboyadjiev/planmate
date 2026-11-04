@@ -13,16 +13,35 @@ public class FeedEvent {
 
 	/** Who created the event, as far as the card needs to know. */
 	public static class Host {
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private final Long id;
 		private final String name;
 		private final String username;
 		private final boolean friend;
 		private final boolean you;
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private final String avatarKey;
 
 		public Host(String name, String username, boolean friend, boolean you) {
+			this(null, name, username, friend, you, null);
+		}
+
+		/** id and avatarKey are null for guests and unknown creators. */
+		public Host(Long id, String name, String username, boolean friend, boolean you, String avatarKey) {
+			this.id = id;
 			this.name = name;
 			this.username = username;
 			this.friend = friend;
 			this.you = you;
+			this.avatarKey = avatarKey;
+		}
+
+		public Long getId() {
+			return id;
+		}
+
+		public String getAvatarKey() {
+			return avatarKey;
 		}
 
 		public String getName() {
@@ -48,12 +67,23 @@ public class FeedEvent {
 		private final String firstName;
 		private final String lastName;
 		private final String username;
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private final String avatarKey;
 
 		public Friend(Long id, String firstName, String lastName, String username) {
+			this(id, firstName, lastName, username, null);
+		}
+
+		public Friend(Long id, String firstName, String lastName, String username, String avatarKey) {
 			this.id = id;
 			this.firstName = firstName;
 			this.lastName = lastName;
 			this.username = username;
+			this.avatarKey = avatarKey;
+		}
+
+		public String getAvatarKey() {
+			return avatarKey;
 		}
 
 		public Long getId() {
