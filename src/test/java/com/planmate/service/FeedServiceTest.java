@@ -66,7 +66,11 @@ class FeedServiceTest {
 	}
 
 	private static List<String> ids(FeedService.FeedPage page) {
-		return page.getEvents().stream().map(FeedEvent::getId).collect(Collectors.toList());
+		return ids(page.getEvents());
+	}
+
+	private static List<String> ids(List<FeedEvent> cards) {
+		return cards.stream().map(FeedEvent::getId).collect(Collectors.toList());
 	}
 
 	@BeforeEach
@@ -285,5 +289,87 @@ class FeedServiceTest {
 	void cityTagsAreWrittenLikeEventTags() {
 		assertEquals("#munich", FeedService.cityTag("Munich"));
 		assertEquals("#newyork", FeedService.cityTag("New York"));
+	}
+
+	// --- Variety and related events ---
+
+	private static final String PICKS = "events@planmate.org";
+
+	private static EventDoc show(String id, String title, String venue, Duration startsIn, String... tags) {
+		EventDoc e = event(id, PICKS, startsIn);
+		e.setTitle(title);
+		EventDoc.EventLocation where = new EventDoc.EventLocation();
+		where.setName(venue);
+		where.setCity("Munich");
+		e.setLocation(where);
+		List<String> all = new ArrayList<>(Arrays.asList(tags));
+		all.add("#munich");
+		e.setTags(all);
+		e.setCityTag("#munich");
+		return e;
+	}
+
+	@Test
+	void aShowListedOncePerDateGetsOneCardThatCountsItsOtherDates() {
+		candidates(
+				show("hullis-1", "HULLIS - Comedy. Dinner. Show.", "Hullis Theater", Duration.ofDays(1), "#comedy"),
+				show("hullis-2", "HULLIS - Comedy. Dinner. Show.", "Hullis Theater", Duration.ofDays(2), "#comedy"),
+				show("hullis-3", "hullis - comedy.  dinner. show.", "Hullis Theater", Duration.ofDays(3), "#comedy"),
+				show("hullis-elsewhere", "HULLIS - Comedy. Dinner. Show.", "Other Stage", Duration.ofDays(4), "#comedy"),
+				show("jazz", "Jazz Night", "Unterfahrt", Duration.ofDays(2), "#concert"));
+
+		List<FeedEvent> cards = feed.getFeed(ALICE, null, 0, 10, NOW).getEvents();
+
+		assertEquals(Arrays.asList("hullis-1", "jazz", "hullis-elsewhere"), ids(cards));
+		assertEquals(Integer.valueOf(2), cards.get(0).getMoreDates());
+		assertNull(cards.get(1).getMoreDates());
+	}
+
+	@Test
+	void manyEventsOfOneTopicAreMixedWithOthers() {
+		candidates(
+				show("concert-1", "Band A", "Hall", Duration.ofHours(24), "#concert"),
+				show("concert-2", "Band B", "Hall", Duration.ofHours(26), "#concert"),
+				show("concert-3", "Band C", "Hall", Duration.ofHours(28), "#concert"),
+				show("concert-4", "Band D", "Hall", Duration.ofHours(30), "#concert"),
+				show("comedy", "Stand-up", "Club", Duration.ofHours(72), "#comedy"));
+
+		assertEquals(Arrays.asList("concert-1", "comedy", "concert-2", "concert-3", "concert-4"),
+				ids(feed.getFeed(null, null, 0, 10, NOW)));
+	}
+
+	@Test
+	void relatedListsTheShowsOtherDatesAndSimilarEventsNearby() {
+		EventDoc opened = show("hullis-2", "HULLIS - Comedy. Dinner. Show.", "Hullis Theater", Duration.ofDays(2), "#comedy", "#food");
+		EventDoc first = show("hullis-1", "HULLIS - Comedy. Dinner. Show.", "Hullis Theater", Duration.ofDays(1), "#comedy", "#food");
+		EventDoc third = show("hullis-3", "HULLIS - Comedy. Dinner. Show.", "Hullis Theater", Duration.ofDays(3), "#comedy", "#food");
+		EventDoc otherVenue = show("hullis-x", "HULLIS - Comedy. Dinner. Show.", "Other Stage", Duration.ofDays(5), "#comedy");
+		when(repository.findUpcomingPublicByCreatorAndTitle(eq(PICKS), eq(opened.getTitle()), eq(NOW), any()))
+				.thenReturn(Arrays.asList(first, opened, third, otherVenue));
+
+		EventDoc standUp = show("standup", "Stand-up Night", "Club", Duration.ofDays(4), "#comedy", "#food");
+		EventDoc dinner = show("dinner", "Supper Club", "Kitchen", Duration.ofDays(1), "#food");
+		EventDoc rock = show("rock", "Rock Night", "Hall", Duration.ofDays(1), "#concert");
+		EventDoc berlin = show("berlin-comedy", "Comedy Berlin", "Bar", Duration.ofDays(1), "#comedy");
+		berlin.setCityTag("#berlin");
+		candidates(opened, first, third, otherVenue, standUp, dinner, rock, berlin);
+
+		FeedService.RelatedEvents related = feed.related(opened, ALICE, NOW);
+
+		assertEquals(Arrays.asList("hullis-1", "hullis-3"), ids(related.getMoreDates()));
+		// Two shared topics beat one, then sooner first; the show's own dates, other topics and other cities are left out
+		assertEquals(Arrays.asList("standup", "dinner", "hullis-x"), ids(related.getSimilar()));
+	}
+
+	@Test
+	void privateEventsListNoOtherDates() {
+		EventDoc secret = show("secret", "Team dinner", "Kitchen", Duration.ofDays(1), "#food");
+		secret.setIsPublic(false);
+		candidates();
+
+		FeedService.RelatedEvents related = feed.related(secret, ALICE, NOW);
+
+		assertTrue(related.getMoreDates().isEmpty());
+		assertTrue(related.getSimilar().isEmpty());
 	}
 }

@@ -138,6 +138,18 @@ public class FeedEvent {
 		this.cancelled = cancelled;
 	}
 
+	/** Feed only: how many more upcoming dates the same show has (they get no cards of their own). Left out when none. */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Integer moreDates;
+
+	public Integer getMoreDates() {
+		return moreDates;
+	}
+
+	public void setMoreDates(Integer moreDates) {
+		this.moreDates = moreDates;
+	}
+
 	/** The event's page at its source (discovery events), for "Read more here". Left out when there is none. */
 	@JsonInclude(JsonInclude.Include.NON_NULL)
 	private String sourceUrl;

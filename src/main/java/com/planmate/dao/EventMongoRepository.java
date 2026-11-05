@@ -55,6 +55,10 @@ public interface EventMongoRepository extends MongoRepository<EventDoc, String> 
     List<EventDoc> findUpcomingPublicAttendedBy(String userId, Instant now, Pageable pageable);
 
     /** Same as findUpcomingPublic, limited to one tag (tags are stored normalised: lower case, leading '#'). */
+    /** Upcoming public dates of a show: same host and title (FeedService narrows them down to the same venue). */
+    @Query("{ 'creatorId': ?0, 'title': ?1, 'isPublic': true, 'cancelled': { $ne: true }, 'endTime': { $gt: ?2 } }")
+    List<EventDoc> findUpcomingPublicByCreatorAndTitle(String creatorId, String title, Instant now, Pageable pageable);
+
     @Query("{ 'isPublic': true, 'cancelled': { $ne: true }, 'endTime': { $gt: ?0 }, 'tags': ?1 }")
     List<EventDoc> findUpcomingPublicWithTag(Instant now, String tag, Pageable pageable);
 }

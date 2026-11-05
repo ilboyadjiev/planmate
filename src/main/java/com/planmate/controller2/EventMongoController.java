@@ -316,6 +316,17 @@ public class EventMongoController {
 	}
 
 	/**
+	 * Below an event on its page: the show's other upcoming dates and similar public events. Same access rules as
+	 * the event page; only public events are listed.
+	 */
+	@GetMapping("/{id}/related")
+	public ResponseEntity<FeedService.RelatedEvents> getRelatedEvents(@PathVariable String id, Principal principal) {
+		EventDoc event = findEvent(id);
+		requireVisible(event, principal);
+		return ResponseEntity.ok(feedService.related(event, principal == null ? null : principal.getName()));
+	}
+
+	/**
 	 * One event as an .ics file, to add to Apple, Google, Outlook, Samsung or any other calendar. Same rules as
 	 * the event page: public events for everyone, private ones only for the people involved.
 	 */

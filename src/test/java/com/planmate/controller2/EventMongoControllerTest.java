@@ -311,6 +311,15 @@ class EventMongoControllerTest {
 	}
 
 	@Test
+	void relatedEventsFollowTheEventPagesRules() {
+		EventDoc dinner = event("dinner", BOB, false, "1");
+		when(service.getEventById("dinner")).thenReturn(dinner);
+		assertEquals(HttpStatus.FORBIDDEN, statusOf(() -> controller.getRelatedEvents("dinner", user(CAROL))));
+		assertEquals(HttpStatus.UNAUTHORIZED, statusOf(() -> controller.getRelatedEvents("dinner", null)));
+		assertEquals(HttpStatus.OK, controller.getRelatedEvents("dinner", user(ALICE)).getStatusCode());
+	}
+
+	@Test
 	void joiningAndLeavingAPublicEvent() {
 		EventDoc concert = attended("concert", BOB);
 		when(service.getEventById("concert")).thenReturn(concert);

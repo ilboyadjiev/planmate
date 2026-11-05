@@ -35,6 +35,7 @@ import com.planmate.dto2.EventDoc;
 import com.planmate.dto2.FeedEvent;
 import com.planmate.util.CityTags;
 import com.planmate.util.ConstantsUtil;
+import com.planmate.util.EventSeries;
 
 /**
  * The Discover feed: upcoming public events, ranked for the viewer.
@@ -44,6 +45,14 @@ import com.planmate.util.ConstantsUtil;
  * - popularity: log(1 + people going), so a crowd helps but never drowns out friends
  * - soonness: 3 for events today, 1.5 tomorrow, about 0.4 a week out
  * Ties go to the event that starts first. A tag narrows the candidates; the ranking stays the same.
+ *
+ * Variety, after scoring:
+ * - a show listed once per date (same host, title and venue, see EventSeries) gets one card, its best-placed
+ *   date, which says how many more dates there are (moreDates);
+ * - an event loses REPEAT_PENALTY for each of the VARIETY_WINDOW cards right before it that share its main topic
+ *   (first tag that is not the city tag), so ten concerts in a row become concerts mixed with other things.
+ *
+ * The event page shows the rest: the show's other dates and similar events (related()).
  *
  * Candidates are the next MAX_CANDIDATES upcoming public events, ranked in memory. That is plenty at the current
  * scale; move the scoring into an aggregation once there are thousands of upcoming public events.
@@ -55,6 +64,10 @@ public class FeedService {
 	static final int MAX_CANDIDATES = 500;
 	static final String UNKNOWN_HOST = "PlanMate user";
 	static final String GUEST_HOST = "Guest";
+	static final int VARIETY_WINDOW = 4;
+	static final double REPEAT_PENALTY = 1.5;
+	static final int MAX_MORE_DATES = 10;
+	static final int MAX_SIMILAR = 4;
 
 	/** One page of the feed. */
 	public static class FeedPage {
@@ -248,12 +261,16 @@ public class FeedService {
 		int pageSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
 		int pageIndex = Math.max(0, page);
 
-		List<EventDoc> ranked = events.stream()
+		Map<EventDoc, Double> scores = new java.util.IdentityHashMap<>();
+		events.forEach(e -> scores.put(e, score(e, viewer, now)));
+		List<EventDoc> byScore = events.stream()
 				.filter(e -> !hideTopics || !viewer.hidesTopicOf(e))
-				.sorted(Comparator.comparingDouble((EventDoc e) -> -score(e, viewer, now))
+				.sorted(Comparator.comparingDouble((EventDoc e) -> -scores.get(e))
 						.thenComparing(EventDoc::getStartTime, Comparator.nullsLast(Comparator.naturalOrder()))
 						.thenComparing(EventDoc::getId, Comparator.nullsLast(Comparator.naturalOrder())))
 				.collect(Collectors.toList());
+		Map<EventDoc, Integer> moreDates = new java.util.IdentityHashMap<>();
+		List<EventDoc> ranked = varied(onePerSeries(byScore, moreDates), scores);
 
 		long from = (long) pageIndex * pageSize;
 		if (from >= ranked.size()) {
@@ -262,9 +279,150 @@ public class FeedService {
 		int to = (int) Math.min(ranked.size(), from + pageSize);
 		Map<String, User> hosts = new HashMap<>();
 		List<FeedEvent> cards = ranked.subList((int) from, to).stream()
-				.map(e -> toFeedEvent(e, viewer, hosts, Collections.emptyMap()))
+				.map(e -> withMoreDates(toFeedEvent(e, viewer, hosts, Collections.emptyMap()), moreDates.get(e)))
 				.collect(Collectors.toList());
 		return new FeedPage(cards, pageIndex, to < ranked.size());
+	}
+
+	private static FeedEvent withMoreDates(FeedEvent card, Integer moreDates) {
+		card.setMoreDates(moreDates == null || moreDates == 0 ? null : moreDates);
+		return card;
+	}
+
+	/**
+	 * One event per show, keeping the order: the first (best-placed) date stays, the later ones are left out and
+	 * counted in moreDates.
+	 */
+	static List<EventDoc> onePerSeries(List<EventDoc> ranked, Map<EventDoc, Integer> moreDates) {
+		Map<String, EventDoc> first = new HashMap<>();
+		List<EventDoc> kept = new java.util.ArrayList<>();
+		for (EventDoc e : ranked) {
+			String series = EventSeries.key(e);
+			EventDoc shown = series == null ? null : first.putIfAbsent(series, e);
+			if (shown == null) {
+				kept.add(e);
+			} else {
+				moreDates.merge(shown, 1, Integer::sum);
+			}
+		}
+		return kept;
+	}
+
+	/**
+	 * Picks the cards in order of score, but each card loses REPEAT_PENALTY for every one of the VARIETY_WINDOW
+	 * cards right before it with the same main topic. Without topics, or with a lead bigger than the penalty, the
+	 * order stays as scored.
+	 */
+	static List<EventDoc> varied(List<EventDoc> ranked, Map<EventDoc, Double> scores) {
+		List<EventDoc> left = new java.util.ArrayList<>(ranked);
+		List<EventDoc> picked = new java.util.ArrayList<>(ranked.size());
+		while (!left.isEmpty()) {
+			List<String> recent = picked.subList(Math.max(0, picked.size() - VARIETY_WINDOW), picked.size()).stream()
+					.map(FeedService::mainTopic).collect(Collectors.toList());
+			int best = 0;
+			double bestScore = Double.NEGATIVE_INFINITY;
+			for (int i = 0; i < left.size(); i++) {
+				EventDoc e = left.get(i);
+				String topic = mainTopic(e);
+				long repeats = topic == null ? 0 : recent.stream().filter(topic::equals).count();
+				double s = scores.getOrDefault(e, 0.0) - REPEAT_PENALTY * repeats;
+				if (s > bestScore) { // strictly: equal scores keep their order
+					best = i;
+					bestScore = s;
+				}
+			}
+			picked.add(left.remove(best));
+		}
+		return picked;
+	}
+
+	/** The first tag that is not the city tag ("#concert"), or null. */
+	static String mainTopic(EventDoc e) {
+		return topicsOf(e).stream().findFirst().orElse(null);
+	}
+
+	/** An event's tags without its city tag, in order. */
+	static Set<String> topicsOf(EventDoc e) {
+		Set<String> topics = new LinkedHashSet<>();
+		if (e.getTags() != null) {
+			for (String tag : e.getTags()) {
+				String t = tag == null ? "" : tag.trim().toLowerCase();
+				if (!t.isEmpty() && !t.equals(e.getCityTag())) {
+					topics.add(t);
+				}
+			}
+		}
+		return topics;
+	}
+
+	/**
+	 * What the event page shows below an event: the show's other upcoming dates (soonest first) and up to
+	 * MAX_SIMILAR similar events. Similar means public and upcoming, sharing a topic, in the same city (or without
+	 * one, like online events), not another date of the same show, and not one of the viewer's hidden topics;
+	 * more shared topics first, then the feed's own score. Only public events are listed.
+	 */
+	public RelatedEvents related(EventDoc event, String viewerEmail) {
+		return related(event, viewerEmail, Instant.now());
+	}
+
+	RelatedEvents related(EventDoc event, String viewerEmail, Instant now) {
+		Viewer viewer = viewer(viewerEmail);
+		Map<String, User> hosts = new HashMap<>();
+		String series = EventSeries.key(event);
+
+		List<FeedEvent> dates = Collections.emptyList();
+		if (series != null && event.getCreatorId() != null && Boolean.TRUE.equals(event.getIsPublic())) {
+			dates = repository.findUpcomingPublicByCreatorAndTitle(event.getCreatorId(), event.getTitle(), now,
+					PageRequest.of(0, MAX_MORE_DATES + 1, Sort.by("startTime").ascending())).stream()
+					.filter(e -> !Objects.equals(e.getId(), event.getId()) && series.equals(EventSeries.key(e)))
+					.limit(MAX_MORE_DATES)
+					.map(e -> toFeedEvent(e, viewer, hosts, Collections.emptyMap()))
+					.collect(Collectors.toList());
+		}
+
+		Set<String> topics = topicsOf(event);
+		List<FeedEvent> similar = Collections.emptyList();
+		if (!topics.isEmpty()) {
+			Map<EventDoc, Double> scores = new java.util.IdentityHashMap<>();
+			for (EventDoc e : repository.findUpcomingPublic(now, candidates())) {
+				long shared = topicsOf(e).stream().filter(topics::contains).count();
+				boolean sameArea = event.getCityTag() == null || e.getCityTag() == null
+						|| event.getCityTag().equals(e.getCityTag());
+				if (shared > 0 && sameArea && !Objects.equals(e.getId(), event.getId())
+						&& !Objects.equals(series, EventSeries.key(e)) && !viewer.hidesTopicOf(e)) {
+					scores.put(e, 3.0 * shared + score(e, viewer, now));
+				}
+			}
+			List<EventDoc> ranked = scores.keySet().stream()
+					.sorted(Comparator.comparingDouble((EventDoc e) -> -scores.get(e))
+							.thenComparing(EventDoc::getStartTime, Comparator.nullsLast(Comparator.naturalOrder()))
+							.thenComparing(EventDoc::getId, Comparator.nullsLast(Comparator.naturalOrder())))
+					.collect(Collectors.toList());
+			Map<EventDoc, Integer> moreDates = new java.util.IdentityHashMap<>();
+			similar = onePerSeries(ranked, moreDates).stream().limit(MAX_SIMILAR)
+					.map(e -> withMoreDates(toFeedEvent(e, viewer, hosts, Collections.emptyMap()), moreDates.get(e)))
+					.collect(Collectors.toList());
+		}
+		return new RelatedEvents(dates, similar);
+	}
+
+	/** Below an event on its page: other dates of the same show, and similar events. */
+	public static class RelatedEvents {
+		private final List<FeedEvent> moreDates;
+		private final List<FeedEvent> similar;
+
+		public RelatedEvents(List<FeedEvent> moreDates, List<FeedEvent> similar) {
+			this.moreDates = moreDates;
+			this.similar = similar;
+		}
+
+		public List<FeedEvent> getMoreDates() {
+			return moreDates;
+		}
+
+		public List<FeedEvent> getSimilar() {
+			return similar;
+		}
 	}
 
 	/** One event as a feed card for this viewer, e.g. right after they joined it. */
