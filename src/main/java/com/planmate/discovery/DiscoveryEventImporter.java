@@ -82,7 +82,7 @@ public class DiscoveryEventImporter {
 		doc.setIsPublic(true);
 		doc.setCreatorId(creator);
 		doc.setCancelled(cancelled ? Boolean.TRUE : null);
-		doc.setSourceUrl(StringUtils.trimToNull(e.getSourceUrl()));
+		doc.setSourceUrl(webLink(e.getSourceUrl()));
 		doc.setDiscoverySource(e.getSource());
 		doc.setDiscoveryVersion(message.getVersion());
 		cityTags.apply(doc, previousCityTag);
@@ -101,6 +101,21 @@ public class DiscoveryEventImporter {
 			return source;
 		}
 		return StringUtils.abbreviate(body, MAX_DESCRIPTION - source.length() - 2) + "\n\n" + source;
+	}
+
+	/** The source's page, only as a plain http(s) link (the app shows it as "Read more here"); anything else is dropped. */
+	static String webLink(String url) {
+		String trimmed = StringUtils.trimToNull(url);
+		if (trimmed == null || trimmed.length() > 2000) {
+			return null;
+		}
+		try {
+			java.net.URI uri = new java.net.URI(trimmed);
+			String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
+			return (scheme.equals("https") || scheme.equals("http")) && uri.getHost() != null ? trimmed : null;
+		} catch (java.net.URISyntaxException ex) {
+			return null;
+		}
 	}
 
 	private static List<String> tags(List<String> tags) {

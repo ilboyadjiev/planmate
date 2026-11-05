@@ -1,6 +1,7 @@
 package com.planmate.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -121,6 +122,19 @@ class FeedServiceTest {
 		assertEquals("Bob", card.getFriendsGoing().get(0).getFirstName());
 		assertTrue(card.isGoing());
 		assertFalse(card.isHosting());
+	}
+
+	@Test
+	void cardsLinkToTheEventsSourcePage() {
+		EventDoc picked = event("tm-1", CAROL, Duration.ofDays(1));
+		picked.setSourceUrl("https://tickets.example/1");
+		candidates(picked, event("own", BOB, Duration.ofDays(2)));
+
+		java.util.Map<String, FeedEvent> cards = new java.util.HashMap<>();
+		feed.getFeed(ALICE, null, 0, 10, NOW).getEvents().forEach(c -> cards.put(c.getId(), c));
+
+		assertEquals("https://tickets.example/1", cards.get("tm-1").getSourceUrl());
+		assertNull(cards.get("own").getSourceUrl());
 	}
 
 	@Test

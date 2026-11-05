@@ -138,6 +138,18 @@ public class FeedEvent {
 		this.cancelled = cancelled;
 	}
 
+	/** The event's page at its source (discovery events), for "Read more here". Left out when there is none. */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private String sourceUrl;
+
+	public String getSourceUrl() {
+		return sourceUrl;
+	}
+
+	public void setSourceUrl(String sourceUrl) {
+		this.sourceUrl = sourceUrl;
+	}
+
 	/**
 	 * Whether anyone may open the event: set on the event page (GET /events/{id}/card), so it can say who the link
 	 * works for. Left out elsewhere.

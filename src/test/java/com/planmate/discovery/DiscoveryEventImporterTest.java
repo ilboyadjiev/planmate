@@ -73,11 +73,22 @@ class DiscoveryEventImporterTest {
 		assertEquals("Jazz Night", doc.getTitle());
 		assertEquals("Live jazz in a cellar club.\n\nTip: Book ahead\n\nSource: Ticketmaster", doc.getDescription());
 		assertEquals(Boolean.TRUE, doc.getIsPublic());
+		assertEquals("https://tickets.example/jazz", doc.getSourceUrl());
 		assertEquals("events@planmate.org", doc.getCreatorId());
 		assertNull(doc.getCancelled());
 		assertEquals(Long.valueOf(1), doc.getDiscoveryVersion());
 		assertTrue(doc.getTags().containsAll(Arrays.asList("#concert", "#culture", "#munich")), "city tag added: " + doc.getTags());
 		assertTrue(doc.getParticipantIds().isEmpty() && doc.getAttendeeIds().isEmpty());
+	}
+
+	@Test
+	void onlyWebLinksAreKeptAsTheSourceUrl() {
+		assertEquals("http://tickets.example/a?b=1", DiscoveryEventImporter.webLink(" http://tickets.example/a?b=1 "));
+		assertNull(DiscoveryEventImporter.webLink("javascript:alert(1)"));
+		assertNull(DiscoveryEventImporter.webLink("data:text/html,hi"));
+		assertNull(DiscoveryEventImporter.webLink("https:/no-host"));
+		assertNull(DiscoveryEventImporter.webLink("not a url"));
+		assertNull(DiscoveryEventImporter.webLink(null));
 	}
 
 	@Test
