@@ -1,9 +1,14 @@
 version: '3.8'
 
+# Memory: every container has a limit (mem_limit), sized for a 2 GB VM; the JVMs size their heap from it
+# (-XX:MaxRAMPercentage=75). Together they can use about 2 GB, so on 2 GB keep an eye on swap. With a 4 GB VM,
+# raise backend to 768m, discovery to 512m, mongodb to 768m (and its cache to 0.5 GB) and postgres to 256m.
+
 services:
   postgres:
     image: 'postgres:14-alpine'
     restart: always
+    mem_limit: 160m
     environment:
       - 'POSTGRES_DB=${DB_NAME}'
       - 'POSTGRES_USER=${DB_USER}'
@@ -16,26 +21,37 @@ services:
   mongodb:
       image: 'mongo:6'
       restart: always
+      mem_limit: 384m
+      # WiredTiger's cache, fixed at its minimum (0.25 GB); the rest of the limit is for connections and queries
+      command: ["--wiredTigerCacheSizeGB", "0.25"]
       ports:
         - "27017:27017"
       environment:
         - 'MONGO_INITDB_ROOT_USERNAME=${MONGO_USER}'
         - 'MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}'
         - 'MONGO_INITDB_DATABASE=planmate_nosql'
+        - 'DISCOVERY_MONGO_PASSWORD=${DISCOVERY_MONGO_PASSWORD}'
       networks:
         - planmate-network
       volumes:
         - planmate-mongo-volume:/data/db
+        # Creates the discovery user on a fresh volume (existing servers: run it once, see docs/DISCOVERY_SETUP.md)
+        - ./mongo-init:/docker-entrypoint-initdb.d:ro
 
   backend:
     image: 'iliandocker/planmate-docker-repo:planmate-backend'
     container_name: planmate-backend
     restart: always
+    mem_limit: 512m
     environment:
       - 'SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/${DB_NAME}'
       - 'SPRING_DATASOURCE_USERNAME=${DB_USER}'
       - 'SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}'
-      - 'SPRING_PROFILES_ACTIVE=docker' 
+      - 'SPRING_PROFILES_ACTIVE=docker'
+      - 'JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75'
+      # Events from the discovery service
+      - 'KAFKA_BOOTSTRAP_SERVERS=redpanda:9092'
+      - 'DISCOVERY_CONSUMER_ENABLED=true'
       - 'JWT_SECRET=${JWT_SECRET}'
       - 'GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}'
       - 'SPRING_DATA_MONGODB_URI=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongodb:27017/planmate_nosql?authSource=admin'
@@ -46,11 +62,58 @@ services:
     depends_on:
       - postgres
       - mongodb
+      - redpanda
+
+  # Redpanda (Kafka API) carries events from discovery to the backend. Only reachable inside this network: no ports.
+  redpanda:
+    image: 'redpandadata/redpanda:v25.3.18'
+    container_name: planmate-redpanda
+    restart: always
+    mem_limit: 512m
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --memory=320M
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --default-log-level=warn
+      - --kafka-addr=internal://0.0.0.0:9092
+      - --advertise-kafka-addr=internal://redpanda:9092
+    networks:
+      - planmate-network
+    volumes:
+      - planmate-redpanda-volume:/var/lib/redpanda/data
+
+  # Finds upcoming public events (Ticketmaster, curated file), refines them with Gemini and publishes them to Redpanda
+  discovery:
+    image: 'iliandocker/planmate-docker-repo:planmate-discovery'
+    container_name: planmate-discovery
+    restart: always
+    mem_limit: 320m
+    environment:
+      - 'JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75'
+      - 'DISCOVERY_MONGODB_URI=mongodb://discovery:${DISCOVERY_MONGO_PASSWORD}@mongodb:27017/planmate_discovery?authSource=planmate_discovery'
+      - 'KAFKA_BOOTSTRAP_SERVERS=redpanda:9092'
+      - 'TICKETMASTER_API_KEY=${TICKETMASTER_API_KEY}'
+      - 'GEMINI_DISCOVERY_API_KEY=${GEMINI_DISCOVERY_API_KEY}'
+      - 'GEMINI_DISCOVERY_MODEL=${GEMINI_DISCOVERY_MODEL}'
+      # Edit ./discovery/curated-events.yml on the server; discovery picks it up on its next curated run
+      - 'CURATED_EVENTS_FILE=file:/config/curated-events.yml'
+    volumes:
+      - ./discovery/curated-events.yml:/config/curated-events.yml:ro
+    networks:
+      - planmate-network
+    depends_on:
+      - mongodb
+      - redpanda
 
   frontend:
     image: 'iliandocker/planmate-docker-repo:planmate-frontend'
     container_name: planmate-frontend
     restart: always
+    mem_limit: 48m
     ports:
       - "80:80" 
       - "443:443"
@@ -66,6 +129,8 @@ volumes:
   planmate-volume:
     driver: local
   planmate-mongo-volume:
+    driver: local
+  planmate-redpanda-volume:
     driver: local
 
 networks:

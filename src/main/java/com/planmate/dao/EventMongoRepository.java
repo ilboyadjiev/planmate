@@ -25,7 +25,7 @@ public interface EventMongoRepository extends MongoRepository<EventDoc, String> 
     List<EventDoc> findCreatedOrParticipatingInRange(String creatorId, String participantId, Instant startTime, Instant endTime);
     
     /** Feed candidates: public events that have not ended yet. Order and limit come from the pageable. */
-    @Query("{ 'isPublic': true, 'endTime': { $gt: ?0 } }")
+    @Query("{ 'isPublic': true, 'cancelled': { $ne: true }, 'endTime': { $gt: ?0 } }")
     List<EventDoc> findUpcomingPublic(Instant now, Pageable pageable);
 
     /**
@@ -41,20 +41,20 @@ public interface EventMongoRepository extends MongoRepository<EventDoc, String> 
      * city (cityPattern), its free-text location name mentions the city as a word (namePattern), or it carries the
      * city as a tag (cityTag, e.g. "#munich"). Both patterns are case-insensitive regular expressions.
      */
-    @Query("{ 'isPublic': true, 'endTime': { $gt: ?0 }, $or: [ { 'location.city': { $regex: ?1, $options: 'i' } }, "
+    @Query("{ 'isPublic': true, 'cancelled': { $ne: true }, 'endTime': { $gt: ?0 }, $or: [ { 'location.city': { $regex: ?1, $options: 'i' } }, "
             + "{ 'location.name': { $regex: ?2, $options: 'i' } }, { 'tags': ?3 } ] }")
     List<EventDoc> findUpcomingPublicInCity(Instant now, String cityPattern, String namePattern, String cityTag,
             Pageable pageable);
 
     /** Profile pages: upcoming public events someone hosts. */
-    @Query("{ 'creatorId': ?0, 'isPublic': true, 'endTime': { $gt: ?1 } }")
+    @Query("{ 'creatorId': ?0, 'isPublic': true, 'cancelled': { $ne: true }, 'endTime': { $gt: ?1 } }")
     List<EventDoc> findUpcomingPublicHostedBy(String creatorEmail, Instant now, Pageable pageable);
 
     /** Profile pages: upcoming public events someone joined from the feed. */
-    @Query("{ 'attendeeIds': ?0, 'isPublic': true, 'endTime': { $gt: ?1 } }")
+    @Query("{ 'attendeeIds': ?0, 'isPublic': true, 'cancelled': { $ne: true }, 'endTime': { $gt: ?1 } }")
     List<EventDoc> findUpcomingPublicAttendedBy(String userId, Instant now, Pageable pageable);
 
     /** Same as findUpcomingPublic, limited to one tag (tags are stored normalised: lower case, leading '#'). */
-    @Query("{ 'isPublic': true, 'endTime': { $gt: ?0 }, 'tags': ?1 }")
+    @Query("{ 'isPublic': true, 'cancelled': { $ne: true }, 'endTime': { $gt: ?0 }, 'tags': ?1 }")
     List<EventDoc> findUpcomingPublicWithTag(Instant now, String tag, Pageable pageable);
 }

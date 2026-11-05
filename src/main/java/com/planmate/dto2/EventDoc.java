@@ -53,6 +53,20 @@ public class EventDoc {
 	@JsonIgnore
 	private List<String> searchTerms = new ArrayList<>();
 
+	/**
+	 * Cancelled by its organiser or source (discovery: EventCancelled). It stays in the calendars of people who
+	 * joined, marked as cancelled, but leaves Discover, search and profiles.
+	 */
+	private Boolean cancelled;
+
+	/** Events from the discovery service: where they come from and the last message version applied (never sent to clients). */
+	@JsonIgnore
+	private String discoverySource;
+	@JsonIgnore
+	private Long discoveryVersion;
+	/** The event's page at its source, e.g. its Ticketmaster page. */
+	private String sourceUrl;
+
 	// Response-only fields, filled per viewer (never stored)
 	@Transient
 	private String hostName;
@@ -225,6 +239,42 @@ public class EventDoc {
 	}
 
 
+
+	public Boolean getCancelled() {
+		return cancelled;
+	}
+
+	public void setCancelled(Boolean cancelled) {
+		this.cancelled = cancelled;
+	}
+
+	@JsonIgnore
+	public String getDiscoverySource() {
+		return discoverySource;
+	}
+
+	@JsonIgnore
+	public void setDiscoverySource(String discoverySource) {
+		this.discoverySource = discoverySource;
+	}
+
+	@JsonIgnore
+	public Long getDiscoveryVersion() {
+		return discoveryVersion;
+	}
+
+	@JsonIgnore
+	public void setDiscoveryVersion(Long discoveryVersion) {
+		this.discoveryVersion = discoveryVersion;
+	}
+
+	public String getSourceUrl() {
+		return sourceUrl;
+	}
+
+	public void setSourceUrl(String sourceUrl) {
+		this.sourceUrl = sourceUrl;
+	}
 
 	public static class EventLocation {
 		private String name;

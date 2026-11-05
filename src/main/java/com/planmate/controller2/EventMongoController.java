@@ -274,6 +274,9 @@ public class EventMongoController {
 		event.setId(null);
 		event.setAttendeeIds(new ArrayList<>());
 		event.setResponses(new HashMap<>());
+		// Only the discovery import marks events cancelled or links them to a source
+		event.setCancelled(null);
+		event.setSourceUrl(null);
 		cityTagService.apply(event, null);
 		return new ResponseEntity<>(eventService.createEvent(event), HttpStatus.CREATED);
 	}
@@ -448,6 +451,9 @@ public class EventMongoController {
 		}
 		if (principal.getName().equals(event.getCreatorId())) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You're hosting this event.");
+		}
+		if (Boolean.TRUE.equals(event.getCancelled())) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This event was cancelled.");
 		}
 		if (event.getEndTime() != null && !event.getEndTime().isAfter(Instant.now())) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This event is already over.");

@@ -231,7 +231,7 @@ public class EventSearchService {
 			matches.add(Criteria.where("groupIds").in(groupIds));
 		}
 
-		return new Query(new Criteria().andOperator(Criteria.where("endTime").gt(now), visible,
+		return new Query(new Criteria().andOperator(Criteria.where("endTime").gt(now), Criteria.where("cancelled").ne(true), visible,
 				new Criteria().orOperator(matches.toArray(new Criteria[0]))))
 				.with(Sort.by("startTime").ascending())
 				.limit(MAX_CANDIDATES);

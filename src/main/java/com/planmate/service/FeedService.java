@@ -334,6 +334,7 @@ public class FeedService {
 		card.setEndTime(event.getEndTime());
 		card.setLocation(event.getLocation());
 		card.setTags(event.getTags() == null ? Collections.emptyList() : event.getTags());
+		card.setCancelled(Boolean.TRUE.equals(event.getCancelled()));
 
 		boolean hosting = viewer.email != null && viewer.email.equals(creatorId);
 		User creator = creatorId == null || creatorId.startsWith("guest_") ? null : lookupHost(creatorId, hostCache);
