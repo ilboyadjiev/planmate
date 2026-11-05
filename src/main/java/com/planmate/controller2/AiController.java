@@ -13,7 +13,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.planmate.dto.User;
 import com.planmate.service.GamePlanService;
+import com.planmate.service.UserService;
+import com.planmate.service.UserSettingsService;
 import com.planmate.util.AiSummaryResponse;
 import com.planmate.util.AiSummaryResult;
 
@@ -24,9 +27,13 @@ public class AiController {
 	private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(AiController.class);
 
 	private final GamePlanService gamePlanService;
+	private final UserService userService;
+	private final UserSettingsService settings;
 
-	public AiController(GamePlanService gamePlanService) {
+	public AiController(GamePlanService gamePlanService, UserService userService, UserSettingsService settings) {
 		this.gamePlanService = gamePlanService;
+		this.userService = userService;
+		this.settings = settings;
 	}
 
 	private static class SummaryTracker {
@@ -56,6 +63,13 @@ public class AiController {
 		}
 
 		String username = principal.getName();
+		// Turned off in Settings: nothing of the user's calendar goes to Gemini, not even a cached plan comes back
+		User me = userService.getUserByEmail(username);
+		if (me != null && !settings.of(me.getId()).isAiGamePlan()) {
+			userSummaryCache.remove(username);
+			return ResponseEntity.status(HttpStatus.FORBIDDEN)
+					.body(Map.of("error", "The AI Game plan is turned off in your settings."));
+		}
 		Instant now = Instant.now();
 		SummaryTracker tracker = userSummaryCache.get(username);
 

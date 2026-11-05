@@ -92,6 +92,7 @@ public class UserSettingsService {
 		view.put("showInSuggestions", s.isShowInSuggestions());
 		view.put("groupAdds", s.getGroupAdds());
 		view.put("searchable", s.isSearchable());
+		view.put("aiGamePlan", s.isAiGamePlan());
 		view.put("likedTags", likedTags(s));
 		view.put("hiddenTags", hiddenTags(s));
 		view.put("homeCity", user.getContactData() == null ? null : user.getContactData().getCity());
@@ -138,6 +139,9 @@ public class UserSettingsService {
 				break;
 			case "searchable":
 				s.setSearchable(bool(change.getKey(), value));
+				break;
+			case "aiGamePlan":
+				s.setAiGamePlan(bool(change.getKey(), value));
 				break;
 			case "likedTags":
 				s.setLikedTags(joinTags(tags(change.getKey(), value)));

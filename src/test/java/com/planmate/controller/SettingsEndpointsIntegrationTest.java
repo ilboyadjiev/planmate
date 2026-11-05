@@ -108,6 +108,19 @@ class SettingsEndpointsIntegrationTest {
 	}
 
 	@Test
+	void withTheAiGamePlanTurnedOffNothingIsSentToGemini() throws Exception {
+		mvc.perform(patch("/api/v1/settings").header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"aiGamePlan\":false}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.aiGamePlan").value(false));
+
+		// Refused before the game plan is even looked at, so no events leave PlanMate
+		mvc.perform(get("/api/v2/ai/summary").header("Authorization", token).param("force", "true"))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.error").value("The AI Game plan is turned off in your settings."));
+	}
+
+	@Test
 	void downloadMyDataIsAJsonFile() throws Exception {
 		mvc.perform(get("/api/v1/account/export").header("Authorization", token))
 				.andExpect(status().isOk())

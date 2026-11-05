@@ -75,6 +75,7 @@ class UserSettingsServiceTest {
 		assertEquals(true, view.get("showInSuggestions"));
 		assertEquals("friends", view.get("groupAdds"));
 		assertEquals(true, view.get("searchable"));
+		assertEquals(true, view.get("aiGamePlan"));
 		assertEquals(Collections.emptyList(), view.get("likedTags"));
 		assertEquals(Collections.emptyList(), view.get("hiddenTags"));
 		assertNull(view.get("homeCity"));
@@ -83,11 +84,12 @@ class UserSettingsServiceTest {
 
 	@Test
 	void changesOnlyTheGivenSettings() {
-		service.update(1L, change("timeFormat", "12h", "searchable", false));
+		service.update(1L, change("timeFormat", "12h", "searchable", false, "aiGamePlan", false));
 		Map<String, Object> view = service.update(1L, change("weekStart", "Sunday"));
 		assertEquals("sunday", view.get("weekStart"));
 		assertEquals("12h", view.get("timeFormat"));
 		assertEquals(false, view.get("searchable"));
+		assertEquals(false, view.get("aiGamePlan"));
 		assertEquals("friends", view.get("goingVisibility"));
 	}
 

@@ -59,6 +59,13 @@ public class UserSettings {
 	@Column(name = "searchable")
 	private Boolean searchable;
 
+	/**
+	 * Whether the AI Game plan is shown and may be generated. When off, the app hides it and the server never sends
+	 * the user's events to Gemini.
+	 */
+	@Column(name = "ai_game_plan")
+	private Boolean aiGamePlan;
+
 	/** Topics boosted on Discover. */
 	@Column(name = "liked_tags", length = 1000)
 	private String likedTags;
@@ -132,6 +139,14 @@ public class UserSettings {
 
 	public void setSearchable(Boolean searchable) {
 		this.searchable = searchable;
+	}
+
+	public boolean isAiGamePlan() {
+		return aiGamePlan == null || aiGamePlan;
+	}
+
+	public void setAiGamePlan(Boolean aiGamePlan) {
+		this.aiGamePlan = aiGamePlan;
 	}
 
 	public String getLikedTags() {
