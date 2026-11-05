@@ -30,6 +30,7 @@ import com.planmate.dto.FriendGroup;
 import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
 import com.planmate.dto2.EventDoc;
+import com.planmate.dto2.FeedEvent;
 import com.planmate.service.CityTagService;
 import com.planmate.service.EventMongoService;
 import com.planmate.service.FeedService;
@@ -282,6 +283,31 @@ class EventMongoControllerTest {
 		assertEquals("Bob", seen.getHostName());
 		assertTrue(seen.getParticipantIds().isEmpty());
 		assertTrue(seen.getAttendeeIds().isEmpty());
+	}
+
+	@Test
+	void sharedLinksOpenPublicEventsForEveryoneAndPrivateOnesOnlyForThoseInvolved() {
+		EventDoc party = event("party", BOB, true);
+		party.setTitle("Party");
+		when(service.getEventById("party")).thenReturn(party);
+		FeedEvent forGuest = controller.getEventCard("party", null).getBody();
+		assertEquals("Party", forGuest.getTitle());
+		assertEquals(Boolean.TRUE, forGuest.getIsPublic());
+		assertEquals("Bob", forGuest.getHost().getName());
+
+		EventDoc dinner = event("dinner", BOB, false, "1");
+		when(service.getEventById("dinner")).thenReturn(dinner);
+		assertEquals(Boolean.FALSE, controller.getEventCard("dinner", user(BOB)).getBody().getIsPublic());
+		assertTrue(controller.getEventCard("dinner", user(BOB)).getBody().isHosting());
+		FeedEvent forInvitee = controller.getEventCard("dinner", user(ALICE)).getBody();
+		assertTrue(forInvitee.isInvited());
+		assertEquals("pending", forInvitee.getMyResponse());
+
+		// Everyone else gets no details, only why: log in first, or ask the host for an invitation
+		assertEquals(HttpStatus.FORBIDDEN, statusOf(() -> controller.getEventCard("dinner", user(CAROL))));
+		assertEquals(HttpStatus.UNAUTHORIZED, statusOf(() -> controller.getEventCard("dinner", null)));
+		when(service.getEventById("gone")).thenThrow(new RuntimeException("not found"));
+		assertEquals(HttpStatus.NOT_FOUND, statusOf(() -> controller.getEventCard("gone", null)));
 	}
 
 	@Test

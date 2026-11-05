@@ -127,6 +127,21 @@ public class FeedEvent {
 	@JsonInclude(JsonInclude.Include.NON_NULL)
 	private List<String> matchedBy;
 
+	/**
+	 * Whether anyone may open the event: set on the event page (GET /events/{id}/card), so it can say who the link
+	 * works for. Left out elsewhere.
+	 */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private Boolean isPublic;
+
+	public Boolean getIsPublic() {
+		return isPublic;
+	}
+
+	public void setIsPublic(Boolean isPublic) {
+		this.isPublic = isPublic;
+	}
+
 	public List<String> getMatchedBy() {
 		return matchedBy;
 	}

@@ -292,6 +292,31 @@ public class EventMongoController {
 		return ResponseEntity.ok(findOwnedEvent(id, resolveOwner(principal, guestId)));
 	}
 
+	/**
+	 * One event as a feed card, for its own page (shared links, /events/{id}). Public events are open to everyone,
+	 * guests too; private ones only to their host, the people invited and those going. Others get no details, only
+	 * why: 401 when not logged in (logging in may help), 403 when logged in but not invited. 404 when it is gone.
+	 */
+	@GetMapping("/{id}/card")
+	public ResponseEntity<FeedEvent> getEventCard(@PathVariable String id, Principal principal) {
+		EventDoc event = findEvent(id);
+		String email = principal == null ? null : principal.getName();
+		String myId = participantKey(principal);
+		boolean visible = Boolean.TRUE.equals(event.getIsPublic())
+				|| (email != null && email.equals(event.getCreatorId()))
+				|| contains(event.getParticipantIds(), myId)
+				|| contains(event.getAttendeeIds(), myId);
+		if (!visible) {
+			throw email == null
+					? new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Log in to view details on this event.")
+					: new ResponseStatusException(HttpStatus.FORBIDDEN,
+							"The sender of this event has to invite you in order for you to see the details.");
+		}
+		FeedEvent card = feedService.toFeedEvent(event, email);
+		card.setIsPublic(Boolean.TRUE.equals(event.getIsPublic()));
+		return ResponseEntity.ok(card);
+	}
+
 	@PutMapping("/{id}")
 	public ResponseEntity<EventDoc> updateEvent(@PathVariable String id, @RequestBody EventDoc event,
 			Principal principal) {
