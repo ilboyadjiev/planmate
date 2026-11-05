@@ -8,8 +8,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -49,6 +52,26 @@ public class SettingsController {
 		User me = caller(principal);
 		return me == null ? new ResponseEntity<>(HttpStatus.UNAUTHORIZED)
 				: ResponseEntity.ok(settings.update(me.getId(), changes));
+	}
+
+	@PostMapping("/api/v1/settings/calendar-feed")
+	@Operation(summary = "Create your calendar subscription link, or a new one with reset=true (the old one stops working)")
+	public ResponseEntity<Map<String, String>> createCalendarFeed(
+			@RequestParam(required = false, defaultValue = "false") boolean reset, Principal principal) {
+		User me = caller(principal);
+		return me == null ? new ResponseEntity<>(HttpStatus.UNAUTHORIZED)
+				: ResponseEntity.ok(Map.of("calendarFeedKey", settings.calendarFeedKey(me.getId(), reset)));
+	}
+
+	@DeleteMapping("/api/v1/settings/calendar-feed")
+	@Operation(summary = "Turn the calendar subscription off: the link stops working")
+	public ResponseEntity<Void> removeCalendarFeed(Principal principal) {
+		User me = caller(principal);
+		if (me == null) {
+			return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+		}
+		settings.removeCalendarFeed(me.getId());
+		return ResponseEntity.noContent().build();
 	}
 
 	@GetMapping(value = "/api/v1/account/export", produces = MediaType.APPLICATION_JSON_VALUE)

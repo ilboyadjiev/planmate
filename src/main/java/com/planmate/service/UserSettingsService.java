@@ -39,6 +39,8 @@ public class UserSettingsService {
 	/** Settings that only ever answer with defaults, for code built without a database (unit tests). */
 	public static final UserSettingsService DEFAULTS_ONLY = new UserSettingsService(null, null);
 
+	private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
+
 	static final int MAX_TAGS = 20;
 	static final int MAX_TAG_LENGTH = 30;
 	static final int MAX_CITY_LENGTH = 80;
@@ -93,6 +95,7 @@ public class UserSettingsService {
 		view.put("groupAdds", s.getGroupAdds());
 		view.put("searchable", s.isSearchable());
 		view.put("aiGamePlan", s.isAiGamePlan());
+		view.put("calendarFeedKey", s.getCalendarKey());
 		view.put("likedTags", likedTags(s));
 		view.put("hiddenTags", hiddenTags(s));
 		view.put("homeCity", user.getContactData() == null ? null : user.getContactData().getCity());
@@ -179,6 +182,42 @@ public class UserSettingsService {
 			userDAO.updateUser(user);
 		}
 		return view(user);
+	}
+
+	/**
+	 * Creates the user's calendar subscription key, or a new one when reset is true (the old link stops working).
+	 * Returns the key.
+	 */
+	@Transactional
+	public String calendarFeedKey(Long userId, boolean reset) {
+		UserSettings s = of(userId);
+		if (s.getCalendarKey() == null || reset) {
+			byte[] bytes = new byte[24];
+			RANDOM.nextBytes(bytes);
+			s.setCalendarKey(java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes));
+			dao.save(s);
+		}
+		return s.getCalendarKey();
+	}
+
+	/** Turns the calendar subscription off: the link stops working. */
+	@Transactional
+	public void removeCalendarFeed(Long userId) {
+		UserSettings s = of(userId);
+		if (s.getCalendarKey() != null) {
+			s.setCalendarKey(null);
+			dao.save(s);
+		}
+	}
+
+	/** The user a calendar subscription key belongs to, or null. */
+	@Transactional
+	public Long userIdForCalendarKey(String key) {
+		if (dao == null || key == null || !key.matches("[A-Za-z0-9_-]{20,64}")) {
+			return null;
+		}
+		UserSettings s = dao.getByCalendarKey(key);
+		return s == null ? null : s.getUserId();
 	}
 
 	/** Removes the user's settings (account deletion). */

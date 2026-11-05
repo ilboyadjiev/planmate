@@ -85,7 +85,7 @@ class EventMongoControllerTest {
 		groupService = mock(FriendGroupService.class);
 		FeedService feedService = new FeedService(mock(EventMongoRepository.class), userService, friendshipService, groupService);
 		controller = new EventMongoController(service, userService, friendshipService, feedService, groupService,
-				new CityTagService());
+				new CityTagService(), new com.planmate.service.CalendarExportService(null, "https://www.planmate.org"));
 
 		User alice = account(1, ALICE);
 		User bob = account(2, BOB);

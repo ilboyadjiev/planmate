@@ -43,6 +43,8 @@ public class SecurityConfig {
 					.antMatchers("/api/v1/auth/**", "/hello", "/api/health", "/error", "/swagger-ui/**", "/api-docs/**").permitAll()
 					// Profile pictures are loaded by img tags (no token); the unguessable key in the URL protects them
 					.antMatchers(HttpMethod.GET, "/api/v1/avatars/*/*").permitAll()
+					// Calendar subscriptions are fetched by calendar apps (no token); the secret key in the URL protects them
+					.antMatchers(HttpMethod.GET, "/api/v2/calendar/*").permitAll()
 					.antMatchers("/api/v2/events/merge", "/api/v2/events/*/attendance", "/api/v2/events/*/response").authenticated()
 					// Remaining event endpoints serve guests too; EventMongoController enforces ownership.
 					.antMatchers("/api/v2/events/**").permitAll()

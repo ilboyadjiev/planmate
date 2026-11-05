@@ -66,6 +66,13 @@ public class UserSettings {
 	@Column(name = "ai_game_plan")
 	private Boolean aiGamePlan;
 
+	/**
+	 * The secret in the user's calendar subscription link (/api/v2/calendar/{key}.ics), which calendar apps poll
+	 * without logging in. Null until they create one; changed when they reset it, which cuts off the old link.
+	 */
+	@Column(name = "calendar_key", length = 64, unique = true)
+	private String calendarKey;
+
 	/** Topics boosted on Discover. */
 	@Column(name = "liked_tags", length = 1000)
 	private String likedTags;
@@ -147,6 +154,14 @@ public class UserSettings {
 
 	public void setAiGamePlan(Boolean aiGamePlan) {
 		this.aiGamePlan = aiGamePlan;
+	}
+
+	public String getCalendarKey() {
+		return calendarKey;
+	}
+
+	public void setCalendarKey(String calendarKey) {
+		this.calendarKey = calendarKey;
 	}
 
 	public String getLikedTags() {

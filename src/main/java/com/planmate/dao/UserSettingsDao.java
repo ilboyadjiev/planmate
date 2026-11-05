@@ -37,6 +37,12 @@ public class UserSettingsDao {
 				.setParameterList("ids", userIds).list();
 	}
 
+	/** Whose calendar subscription link this is, or null. */
+	public UserSettings getByCalendarKey(String key) {
+		return session().createQuery("FROM UserSettings s WHERE s.calendarKey = :key", UserSettings.class)
+				.setParameter("key", key).uniqueResult();
+	}
+
 	/** Stores the settings: a new row on the user's first change, else an update. */
 	public void save(UserSettings settings) {
 		session().merge(settings);

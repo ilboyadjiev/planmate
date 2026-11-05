@@ -120,6 +120,81 @@ class SettingsEndpointsIntegrationTest {
 				.andExpect(jsonPath("$.error").value("The AI Game plan is turned off in your settings."));
 	}
 
+	@Autowired
+	private com.planmate.dao.EventMongoRepository events;
+
+	private com.planmate.dto2.EventDoc event(String title, String creator, java.util.Map<String, String> responses) {
+		com.planmate.dto2.EventDoc e = new com.planmate.dto2.EventDoc();
+		e.setTitle(title + " " + tag);
+		e.setCreatorId(creator);
+		e.setIsPublic(false);
+		e.setStartTime(java.time.Instant.now().plusSeconds(86400));
+		e.setEndTime(java.time.Instant.now().plusSeconds(90000));
+		e.setParticipantIds(new java.util.ArrayList<>(responses.keySet()));
+		e.setResponses(new java.util.HashMap<>(responses));
+		return events.save(e);
+	}
+
+	private String createFeedKey(String query) throws Exception {
+		String body = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+				.post("/api/v1/settings/calendar-feed" + query).header("Authorization", token))
+				.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		return new com.fasterxml.jackson.databind.ObjectMapper().readTree(body).get("calendarFeedKey").asText();
+	}
+
+	@Test
+	void theCalendarSubscriptionWorksWithoutALoginAndCanBeResetOrTurnedOff() throws Exception {
+		String me = String.valueOf(user.getId());
+		java.util.List<com.planmate.dto2.EventDoc> made = java.util.Arrays.asList(
+				event("Hosting", user.getEmail(), java.util.Collections.emptyMap()),
+				event("Going", "someone@example.com", java.util.Map.of(me, "accepted")),
+				event("Maybe", "someone@example.com", java.util.Map.of(me, "maybe")),
+				event("Declined", "someone@example.com", java.util.Map.of(me, "declined")),
+				event("Unanswered", "someone@example.com", java.util.Map.of(me, "pending")));
+		try {
+			String key = createFeedKey("");
+			assertEquals(key, createFeedKey(""), "asking again keeps the same link");
+
+			// Calendar apps fetch it without logging in
+			String ics = mvc.perform(get("/api/v2/calendar/" + key + ".ics"))
+					.andExpect(status().isOk())
+					.andExpect(header().string("Content-Type", org.hamcrest.Matchers.startsWith("text/calendar")))
+					.andReturn().getResponse().getContentAsString().replace("\r\n ", "");
+			assertTrue(ics.contains("SUMMARY:Hosting " + tag));
+			assertTrue(ics.contains("SUMMARY:Going " + tag));
+			assertTrue(ics.contains("SUMMARY:Maybe " + tag));
+			assertTrue(!ics.contains("Declined " + tag) && !ics.contains("Unanswered " + tag), "only events you are going to");
+			assertTrue(ics.contains("STATUS:TENTATIVE"));
+
+			mvc.perform(get("/api/v1/settings").header("Authorization", token)).andExpect(jsonPath("$.calendarFeedKey").value(key));
+
+			String newKey = createFeedKey("?reset=true");
+			mvc.perform(get("/api/v2/calendar/" + key + ".ics")).andExpect(status().isNotFound());
+			mvc.perform(get("/api/v2/calendar/" + newKey + ".ics")).andExpect(status().isOk());
+
+			mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+					.delete("/api/v1/settings/calendar-feed").header("Authorization", token)).andExpect(status().isNoContent());
+			mvc.perform(get("/api/v2/calendar/" + newKey + ".ics")).andExpect(status().isNotFound());
+			mvc.perform(get("/api/v2/calendar/not-a-real-key-000000000.ics")).andExpect(status().isNotFound());
+		} finally {
+			events.deleteAll(made);
+		}
+	}
+
+	@Test
+	void oneEventAsAFileFollowsTheEventPageRules() throws Exception {
+		com.planmate.dto2.EventDoc mine = event("Private dinner", user.getEmail(), java.util.Collections.emptyMap());
+		try {
+			mvc.perform(get("/api/v2/events/" + mine.getId() + "/calendar.ics").header("Authorization", token))
+					.andExpect(status().isOk())
+					.andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("private-dinner-")))
+					.andExpect(result -> assertTrue(result.getResponse().getContentAsString().contains("BEGIN:VEVENT")));
+			mvc.perform(get("/api/v2/events/" + mine.getId() + "/calendar.ics")).andExpect(status().isUnauthorized());
+		} finally {
+			events.delete(mine);
+		}
+	}
+
 	@Test
 	void downloadMyDataIsAJsonFile() throws Exception {
 		mvc.perform(get("/api/v1/account/export").header("Authorization", token))

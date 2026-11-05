@@ -14,7 +14,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,6 +34,7 @@ import com.planmate.dto.Friendship;
 import com.planmate.dto.User;
 import com.planmate.dto2.EventDoc;
 import com.planmate.dto2.FeedEvent;
+import com.planmate.service.CalendarExportService;
 import com.planmate.service.CityTagService;
 import com.planmate.service.EventMongoService;
 import com.planmate.service.FeedService;
@@ -69,16 +72,18 @@ public class EventMongoController {
 	private final FeedService feedService;
 	private final FriendGroupService friendGroupService;
 	private final CityTagService cityTagService;
+	private final CalendarExportService calendarExport;
 
 	public EventMongoController(EventMongoService eventService, UserService userService,
 			FriendshipService friendshipService, FeedService feedService, FriendGroupService friendGroupService,
-			CityTagService cityTagService) {
+			CityTagService cityTagService, CalendarExportService calendarExport) {
 		this.eventService = eventService;
 		this.userService = userService;
 		this.friendshipService = friendshipService;
 		this.feedService = feedService;
 		this.friendGroupService = friendGroupService;
 		this.cityTagService = cityTagService;
+		this.calendarExport = calendarExport;
 	}
 
 	/** The logged-in caller's user id; 401 for guests. */
@@ -301,6 +306,33 @@ public class EventMongoController {
 	public ResponseEntity<FeedEvent> getEventCard(@PathVariable String id, Principal principal) {
 		EventDoc event = findEvent(id);
 		String email = principal == null ? null : principal.getName();
+		requireVisible(event, principal);
+		FeedEvent card = feedService.toFeedEvent(event, email);
+		card.setIsPublic(Boolean.TRUE.equals(event.getIsPublic()));
+		return ResponseEntity.ok(card);
+	}
+
+	/**
+	 * One event as an .ics file, to add to Apple, Google, Outlook, Samsung or any other calendar. Same rules as
+	 * the event page: public events for everyone, private ones only for the people involved.
+	 */
+	@GetMapping(value = "/{id}/calendar.ics", produces = "text/calendar")
+	public ResponseEntity<String> getEventIcs(@PathVariable String id, Principal principal) {
+		EventDoc event = findEvent(id);
+		String myId = requireVisible(event, principal);
+		return ResponseEntity.ok()
+				.contentType(new MediaType("text", "calendar", java.nio.charset.StandardCharsets.UTF_8))
+				// inline: phones offer "Add to calendar" right away; computers download the file
+				.header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + CalendarExportService.fileName(event) + "\"")
+				.body(calendarExport.eventIcs(event, myId));
+	}
+
+	/**
+	 * Who may open an event's page or file: everyone for public events; the host, the invited and those going for
+	 * private ones. Others learn only why not (401: log in; 403: not invited). Returns the caller's user id.
+	 */
+	private String requireVisible(EventDoc event, Principal principal) {
+		String email = principal == null ? null : principal.getName();
 		String myId = participantKey(principal);
 		boolean visible = Boolean.TRUE.equals(event.getIsPublic())
 				|| (email != null && email.equals(event.getCreatorId()))
@@ -312,9 +344,7 @@ public class EventMongoController {
 					: new ResponseStatusException(HttpStatus.FORBIDDEN,
 							"The sender of this event has to invite you in order for you to see the details.");
 		}
-		FeedEvent card = feedService.toFeedEvent(event, email);
-		card.setIsPublic(Boolean.TRUE.equals(event.getIsPublic()));
-		return ResponseEntity.ok(card);
+		return myId;
 	}
 
 	@PutMapping("/{id}")
