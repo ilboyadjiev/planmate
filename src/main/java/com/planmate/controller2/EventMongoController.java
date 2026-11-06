@@ -383,6 +383,14 @@ public class EventMongoController {
 		return ResponseEntity.noContent().build();
 	}
 
+	/** How many invitations the caller has not answered yet (upcoming, not cancelled): { "count": n }. */
+	@GetMapping("/invitations/count")
+	public ResponseEntity<Map<String, Long>> countUnansweredInvitations(Principal principal) {
+		String myId = requireUserId(principal);
+		return ResponseEntity.ok(Map.of("count",
+				eventService.countUnansweredInvitations(myId, principal.getName(), Instant.now())));
+	}
+
 	/**
 	 * Events the caller created plus events they were invited to. creatorId is only read for guests;
 	 * logged-in users are identified by their token.

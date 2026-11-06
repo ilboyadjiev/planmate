@@ -93,6 +93,19 @@ public class EventMongoService {
 		mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(eventId)), update, EventDoc.class);
 	}
 
+	/**
+	 * Invitations the user has not answered yet, for the navbar's badge: upcoming, not cancelled, hosted by
+	 * someone else. userId is a numeric user id, so it is safe in a field name.
+	 */
+	public long countUnansweredInvitations(String userId, String email, Instant now) {
+		Query unanswered = Query.query(Criteria.where("participantIds").is(userId)
+				.and("creatorId").ne(email)
+				.and("cancelled").ne(true)
+				.and("endTime").gt(now)
+				.and("responses." + userId).exists(false));
+		return mongoTemplate.count(unanswered, EventDoc.class);
+	}
+
 	/** Records an invitee's answer. userId is a numeric user id, so it is safe as a field name. */
 	public void setResponse(String eventId, String userId, String response) {
 		mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(eventId)),

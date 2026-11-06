@@ -332,6 +332,14 @@ class EventMongoControllerTest {
 	}
 
 	@Test
+	void unansweredInvitationsAreCountedForTheCallerOnly() {
+		when(service.countUnansweredInvitations(eq("3"), eq(CAROL), any())).thenReturn(2L);
+
+		assertEquals(2L, controller.countUnansweredInvitations(user(CAROL)).getBody().get("count"));
+		assertEquals(HttpStatus.UNAUTHORIZED, statusOf(() -> controller.countUnansweredInvitations(null)));
+	}
+
+	@Test
 	void publicEventsCanBeAnsweredGoingMaybeOrCantGo() {
 		when(service.getEventById("concert")).thenReturn(attended("concert", BOB));
 

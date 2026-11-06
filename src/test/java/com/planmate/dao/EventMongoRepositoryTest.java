@@ -127,6 +127,22 @@ class EventMongoRepositoryTest {
 	}
 
 	@Test
+	void onlyUpcomingUnansweredInvitationsFromOthersAreCounted() {
+		Instant now = Instant.parse("2026-11-10T12:00:00Z");
+		save(PREFIX + "unanswered", BOB, now.plusSeconds(86400), ALICE_ID);
+		EventDoc answered = save(PREFIX + "answered", BOB, now.plusSeconds(86400), ALICE_ID);
+		answered.getResponses().put(ALICE_ID, "maybe");
+		repository.save(answered);
+		EventDoc cancelled = save(PREFIX + "cancelled", BOB, now.plusSeconds(86400), ALICE_ID);
+		cancelled.setCancelled(true);
+		repository.save(cancelled);
+		save(PREFIX + "over", BOB, now.minusSeconds(86400), ALICE_ID);
+		save(PREFIX + "my own", ALICE, now.plusSeconds(86400), ALICE_ID);
+
+		assertEquals(1L, eventService.countUnansweredInvitations(ALICE_ID, ALICE, now));
+	}
+
+	@Test
 	void aPublicEventAnsweredGoingOrMaybeIsInTheCalendarAndCantGoTakesItOut() {
 		Instant when = Instant.parse("2026-11-20T19:00:00Z");
 		EventDoc concert = save(PREFIX + "concert", BOB, when);
