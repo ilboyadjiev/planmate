@@ -37,14 +37,16 @@ class CityTagsTest {
 			"-; -; Flight to New York; -; #newyork; two-word city",
 			"-; -; Munichsburg festival; -; -; part of a word is not a city",
 			"-; -; Essen und Trinken; -; -; everyday words are not cities",
-			"-; -; Board games; -; -; nothing to find" })
+			"-; -; Board games; -; -; nothing to find",
+			"София; НДК; Концерт; -; #sofia; Bulgarian venues write the city in Cyrillic",
+			"-; Joy Station; Концерт в София; -; #sofia; Cyrillic city in the title" })
 	void findsTheCity(String city, String locationName, String title, String description, String expected,
 			String why) {
 		assertEquals(Optional.ofNullable(expected), tagFor(city, locationName, title, description), why);
 	}
 
 	@ParameterizedTest
-	@CsvSource({ "Munich,#munich", "München,#munich", "muenchen,#munich", "New York,#newyork", "Wien,#vienna",
+	@CsvSource({ "Munich,#munich", "München,#munich", "muenchen,#munich", "New York,#newyork", "Wien,#vienna", "Sofia,#sofia", "София,#sofia",
 			"Somewhere Else,#somewhereelse" })
 	void profileCitiesUseTheSameTags(String city, String expected) {
 		assertEquals(expected, CityTags.forCity(city));

@@ -6,7 +6,7 @@
 # (e.g. Essen = "food" in German, Halle = "hall", Hamm, Nice, Split, Bath, Reading, Mobile).
 
 # Germany
-Munich|München|Muenchen|Muc
+Munich|München|Muenchen|Muc|Мюнхен
 Berlin
 Hamburg
 Cologne|Köln|Koeln
@@ -97,6 +97,12 @@ Ljubljana
 Zagreb
 Athens|Athen
 Istanbul
+
+# Bulgaria (also in Cyrillic, as Bulgarian venues write them)
+Sofia|София|Sofiya|Sofija
+Plovdiv|Пловдив
+Varna|Варна
+Burgas|Бургас
 
 # World
 New York|New York City|NYC

@@ -127,6 +127,8 @@ public class FeedService {
 		/** Topics the viewer likes (ranked higher) and hides (left out of "For you" and "Around me"). */
 		final Set<String> likedTags;
 		final Set<String> hiddenTags;
+		/** The city tag of the viewer's profile city ("#munich"), or null. */
+		String cityTag;
 		/** Per request: whether someone keeps the events they go to to themselves (going visibility only_me). */
 		final Map<Long, Boolean> hidesGoing = new HashMap<>();
 
@@ -219,8 +221,12 @@ public class FeedService {
 		Pageable candidates = candidates();
 		List<EventDoc> events = normalizedTag == null ? repository.findUpcomingPublic(now, candidates)
 				: repository.findUpcomingPublicWithTag(now, normalizedTag, candidates);
+		Viewer viewer = viewer(viewerEmail);
+		if (normalizedTag == null) {
+			events = inViewersCity(events, viewer);
+		}
 		// Hidden topics stay out of "For you"; choosing a tag chip still shows that tag's events
-		return rankedPage(events, viewer(viewerEmail), page, size, now, normalizedTag == null);
+		return rankedPage(events, viewer, page, size, now, normalizedTag == null);
 	}
 
 	/**
@@ -245,6 +251,20 @@ public class FeedService {
 				"(^|[^\\p{L}])" + quoted + "($|[^\\p{L}])", cityTag(city), candidates());
 		FeedPage ranked = rankedPage(events, viewer(viewerEmail), page, size, now, true);
 		return new FeedPage(ranked.getEvents(), ranked.getPage(), ranked.isHasMore(), city);
+	}
+
+	/**
+	 * "For you" for someone with a city in their profile: events PlanMate discovered in other cities stay out (a
+	 * concert in Sofia is no use in Munich). People's own events, and discovered ones without a city (game releases,
+	 * online sales), stay in. Guests and people without a city see everything; a city's tag chip shows its events.
+	 */
+	static List<EventDoc> inViewersCity(List<EventDoc> events, Viewer viewer) {
+		if (viewer.cityTag == null) {
+			return events;
+		}
+		return events.stream()
+				.filter(e -> e.getDiscoverySource() == null || e.getCityTag() == null || viewer.cityTag.equals(e.getCityTag()))
+				.collect(Collectors.toList());
 	}
 
 	/** "New York" becomes "#newyork" and "München" becomes "#munich", like automatic event city tags. */
@@ -552,8 +572,11 @@ public class FeedService {
 			}
 		}
 		UserSettings mine = settings.of(me.getId());
-		return new Viewer(email, String.valueOf(me.getId()), friends,
+		Viewer viewer = new Viewer(email, String.valueOf(me.getId()), friends,
 				new HashSet<>(UserSettingsService.likedTags(mine)), new HashSet<>(UserSettingsService.hiddenTags(mine)));
+		String city = me.getContactData() == null ? null : StringUtils.normalizeSpace(me.getContactData().getCity());
+		viewer.cityTag = StringUtils.isEmpty(city) ? null : cityTag(city);
+		return viewer;
 	}
 
 	private User lookupHost(String creatorId, Map<String, User> hostCache) {

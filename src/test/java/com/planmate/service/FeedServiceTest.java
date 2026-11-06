@@ -286,6 +286,33 @@ class FeedServiceTest {
 	}
 
 	@Test
+	void forYouLeavesOutDiscoveredEventsFromOtherCities() {
+		com.planmate.dto.Contact contact = new com.planmate.dto.Contact();
+		contact.setCity("München");
+		users.getUserByEmail(ALICE).setContactData(contact);
+		EventDoc munich = discovered("munich", "#munich");
+		EventDoc sofia = discovered("sofia", "#sofia");
+		EventDoc release = discovered("release", null);
+		EventDoc friendInSofia = event("friend-in-sofia", CAROL, Duration.ofDays(2));
+		friendInSofia.setCityTag("#sofia");
+		candidates(munich, sofia, release, friendInSofia);
+
+		assertEquals(Arrays.asList("munich", "release", "friend-in-sofia"), ids(feed.getFeed(ALICE, null, 0, 10, NOW)));
+		// The city's own chip still shows its events, and so does the feed for someone without a city
+		when(repository.findUpcomingPublicWithTag(eq(NOW), eq("#sofia"), any())).thenReturn(Arrays.asList(sofia));
+		assertEquals(Arrays.asList("sofia"), ids(feed.getFeed(ALICE, "#sofia", 0, 10, NOW)));
+		users.getUserByEmail(ALICE).setContactData(null);
+		assertEquals(4, feed.getFeed(ALICE, null, 0, 10, NOW).getEvents().size());
+	}
+
+	private static EventDoc discovered(String id, String cityTag) {
+		EventDoc e = event(id, "events@planmate.org", Duration.ofDays(1));
+		e.setDiscoverySource("tm");
+		e.setCityTag(cityTag);
+		return e;
+	}
+
+	@Test
 	void cityTagsAreWrittenLikeEventTags() {
 		assertEquals("#munich", FeedService.cityTag("Munich"));
 		assertEquals("#newyork", FeedService.cityTag("New York"));
