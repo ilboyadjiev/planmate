@@ -234,6 +234,7 @@ class FeedServiceTest {
 		assertEquals("carol", cards.get(0).getFriendsGoing().get(0).getUsername()); // named: same group
 		assertEquals("maybe", cards.get(1).getMyResponse());
 		assertFalse(cards.get(1).isGoing());
+		assertEquals(Boolean.FALSE, cards.get(0).getIsPublic()); // the card shows a lock
 	}
 
 	@Test

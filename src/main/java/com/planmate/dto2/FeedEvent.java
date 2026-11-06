@@ -163,8 +163,8 @@ public class FeedEvent {
 	}
 
 	/**
-	 * Whether anyone may open the event: set on the event page (GET /events/{id}/card), so it can say who the link
-	 * works for. Left out elsewhere.
+	 * Whether anyone may open the event: always set on the event page (GET /events/{id}/card), so it can say who the
+	 * link works for. Elsewhere only private events carry it (false); public ones leave it out.
 	 */
 	@JsonInclude(JsonInclude.Include.NON_NULL)
 	private Boolean isPublic;

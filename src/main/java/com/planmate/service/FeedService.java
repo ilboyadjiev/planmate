@@ -514,6 +514,10 @@ public class FeedService {
 		card.setTags(event.getTags() == null ? Collections.emptyList() : event.getTags());
 		card.setCancelled(Boolean.TRUE.equals(event.getCancelled()));
 		card.setSourceUrl(event.getSourceUrl());
+		// Private events (a group's feed, search) say so on the card; public ones leave it out
+		if (!Boolean.TRUE.equals(event.getIsPublic())) {
+			card.setIsPublic(false);
+		}
 
 		boolean hosting = viewer.email != null && viewer.email.equals(creatorId);
 		User creator = creatorId == null || creatorId.startsWith("guest_") ? null : lookupHost(creatorId, hostCache);
