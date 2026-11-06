@@ -66,7 +66,7 @@ public class FeedService {
 	static final String GUEST_HOST = "Guest";
 	static final int VARIETY_WINDOW = 4;
 	static final double REPEAT_PENALTY = 1.5;
-	static final int MAX_MORE_DATES = 10;
+	static final int MAX_MORE_DATES = 30;
 	static final int MAX_SIMILAR = 4;
 
 	/** One page of the feed. */
