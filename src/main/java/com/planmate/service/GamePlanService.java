@@ -126,6 +126,9 @@ public class GamePlanService {
 		if (myId != null && event.getAttendeeIds() != null && event.getAttendeeIds().contains(myId)) {
 			return "public event the user joined";
 		}
+		if (myId != null && event.getMaybeIds() != null && event.getMaybeIds().contains(myId)) {
+			return "public event the user might go to (answered maybe)";
+		}
 		return null;
 	}
 

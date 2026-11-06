@@ -325,10 +325,38 @@ class EventMongoControllerTest {
 		when(service.getEventById("concert")).thenReturn(concert);
 
 		controller.attend("concert", user(CAROL));
-		verify(service).addAttendee("concert", "3");
+		verify(service).setAttendance("concert", "3", "accepted");
 
 		controller.leave("concert", user(CAROL));
 		verify(service).removeAttendee("concert", "3");
+	}
+
+	@Test
+	void publicEventsCanBeAnsweredGoingMaybeOrCantGo() {
+		when(service.getEventById("concert")).thenReturn(attended("concert", BOB));
+
+		controller.answerAttendance("concert", java.util.Map.of("response", "maybe"), user(CAROL));
+		verify(service).setAttendance("concert", "3", "maybe");
+		controller.answerAttendance("concert", java.util.Map.of("response", "declined"), user(CAROL));
+		verify(service).removeAttendee("concert", "3");
+
+		assertEquals(HttpStatus.BAD_REQUEST, statusOf(
+				() -> controller.answerAttendance("concert", java.util.Map.of("response", "perhaps"), user(CAROL))));
+		assertEquals(HttpStatus.BAD_REQUEST, statusOf( // the host does not answer their own event
+				() -> controller.answerAttendance("concert", java.util.Map.of("response", "maybe"), user(BOB))));
+	}
+
+	@Test
+	void aMaybeShowsInTheCalendarAsMaybeWithoutOthersAnswers() {
+		EventDoc concert = attended("concert", BOB, "1");
+		concert.setMaybeIds(new ArrayList<>(Arrays.asList("3")));
+		when(service.getVisibleEventsInRange(CAROL, "3", START, END)).thenReturn(new ArrayList<>(Arrays.asList(concert)));
+
+		EventDoc seen = controller.getEventsByRange(null, START, END, user(CAROL)).getBody().get(0);
+
+		assertEquals("maybe", seen.getViewerRole());
+		assertTrue(seen.getMaybeIds().isEmpty());
+		assertTrue(seen.getAttendeeIds().isEmpty());
 	}
 
 	@Test

@@ -64,6 +64,8 @@ public class EventMongoController {
 	static final String ROLE_HOST = "host";
 	static final String ROLE_INVITED = "invited";
 	static final String ROLE_GOING = "going";
+	/** Answered Maybe to a public event without being invited. */
+	static final String ROLE_MAYBE = "maybe";
 	static final Set<String> RESPONSES = Set.of("accepted", "maybe", "declined");
 
 	private final EventMongoService eventService;
@@ -103,6 +105,7 @@ public class EventMongoController {
 		event.setViewerRole(role);
 		event.setHostName(feedService.hostName(event.getCreatorId(), hostCache));
 		event.setAttendeeIds(new ArrayList<>());
+		event.setMaybeIds(new ArrayList<>());
 		if (!ROLE_INVITED.equals(role)) {
 			event.setCreatorId(null);
 			event.setParticipantIds(new ArrayList<>());
@@ -294,7 +297,7 @@ public class EventMongoController {
 			return ResponseEntity.ok(forInvitee(event, principal.getName(), new HashMap<>(), new HashMap<>(), groupIdsOf(principal.getName())));
 		}
 		if (Boolean.TRUE.equals(event.getIsPublic())) {
-			String role = contains(event.getAttendeeIds(), participantKey(principal)) ? ROLE_GOING : null;
+			String role = publicRole(event, participantKey(principal));
 			return ResponseEntity.ok(forNonOwner(event, role, new HashMap<>()));
 		}
 		return ResponseEntity.ok(findOwnedEvent(id, resolveOwner(principal, guestId)));
@@ -351,7 +354,8 @@ public class EventMongoController {
 		boolean visible = Boolean.TRUE.equals(event.getIsPublic())
 				|| (email != null && email.equals(event.getCreatorId()))
 				|| contains(event.getParticipantIds(), myId)
-				|| contains(event.getAttendeeIds(), myId);
+				|| contains(event.getAttendeeIds(), myId)
+				|| contains(event.getMaybeIds(), myId);
 		if (!visible) {
 			throw email == null
 					? new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Log in to view details on this event.")
@@ -403,7 +407,7 @@ public class EventMongoController {
 				}
 				forInvitee(event, principal == null ? null : principal.getName(), hostCache, people, myGroupIds);
 			} else {
-				forNonOwner(event, ROLE_GOING, hostCache);
+				forNonOwner(event, publicRole(event, myId), hostCache);
 			}
 		}
 		return ResponseEntity.ok(events);
@@ -455,6 +459,27 @@ public class EventMongoController {
 	/** Join a public event from the feed. It then shows in the caller's calendar, read-only. */
 	@PostMapping("/{id}/attendance")
 	public ResponseEntity<FeedEvent> attend(@PathVariable String id, Principal principal) {
+		return answerPublic(id, "accepted", principal);
+	}
+
+	/**
+	 * Answer a public event you were not invited to: accepted (going), maybe, or declined (leaves it). Going and
+	 * Maybe put it in your calendar. Invitations are answered with PUT /response instead.
+	 */
+	@PutMapping("/{id}/attendance")
+	public ResponseEntity<FeedEvent> answerAttendance(@PathVariable String id, @RequestBody Map<String, String> body,
+			Principal principal) {
+		String response = body == null ? null : body.get("response");
+		if (response == null || !RESPONSES.contains(response)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Answer with accepted, maybe or declined.");
+		}
+		if ("declined".equals(response)) {
+			return leave(id, principal);
+		}
+		return answerPublic(id, response, principal);
+	}
+
+	private ResponseEntity<FeedEvent> answerPublic(String id, String response, Principal principal) {
 		String myId = requireUserId(principal);
 		EventDoc event = findEvent(id);
 		if (!Boolean.TRUE.equals(event.getIsPublic())) {
@@ -469,8 +494,16 @@ public class EventMongoController {
 		if (event.getEndTime() != null && !event.getEndTime().isAfter(Instant.now())) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This event is already over.");
 		}
-		eventService.addAttendee(id, myId);
+		eventService.setAttendance(id, myId, response);
 		return ResponseEntity.ok(feedService.toFeedEvent(findEvent(id), principal.getName()));
+	}
+
+	/** Going or Maybe for public events the viewer answered without being invited; null otherwise. */
+	private static String publicRole(EventDoc event, String myId) {
+		if (contains(event.getAttendeeIds(), myId)) {
+			return ROLE_GOING;
+		}
+		return contains(event.getMaybeIds(), myId) ? ROLE_MAYBE : null;
 	}
 
 	/** Leave an event joined from the feed. Allowed even if the event has since been made private. */

@@ -18,10 +18,10 @@ public interface EventMongoRepository extends MongoRepository<EventDoc, String> 
     List<EventDoc> findByCreatorIdAndStartTimeBetween(String creatorId, Instant startTime, Instant endTime);
 
     /**
-     * Events in the range that the user created, was invited to (participantIds) or joined from the feed
-     * (attendeeIds). Both id lists hold user ids as strings.
+     * Events in the range that the user created, was invited to (participantIds), joined from the feed
+     * (attendeeIds) or answered Maybe to (maybeIds). The id lists hold user ids as strings.
      */
-    @Query("{ 'startTime': { $gt: ?2, $lt: ?3 }, $or: [ { 'creatorId': ?0 }, { 'participantIds': ?1 }, { 'attendeeIds': ?1 } ] }")
+    @Query("{ 'startTime': { $gt: ?2, $lt: ?3 }, $or: [ { 'creatorId': ?0 }, { 'participantIds': ?1 }, { 'attendeeIds': ?1 }, { 'maybeIds': ?1 } ] }")
     List<EventDoc> findCreatedOrParticipatingInRange(String creatorId, String participantId, Instant startTime, Instant endTime);
     
     /** Feed candidates: public events that have not ended yet. Order and limit come from the pageable. */

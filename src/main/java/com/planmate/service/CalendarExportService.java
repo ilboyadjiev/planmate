@@ -56,6 +56,7 @@ public class CalendarExportService {
 				new Criteria().orOperator(
 						Criteria.where("creatorId").is(user.getEmail()),
 						Criteria.where("attendeeIds").is(id),
+						Criteria.where("maybeIds").is(id),
 						Criteria.where("participantIds").is(id))))
 				.with(Sort.by("startTime").ascending())
 				.limit(MAX_EVENTS);
@@ -76,6 +77,9 @@ public class CalendarExportService {
 		}
 		if (userId != null && event.getAttendeeIds() != null && event.getAttendeeIds().contains(userId)) {
 			return IcsCalendar.Status.CONFIRMED;
+		}
+		if (userId != null && event.getMaybeIds() != null && event.getMaybeIds().contains(userId)) {
+			return IcsCalendar.Status.TENTATIVE;
 		}
 		String answer = userId == null || event.getResponses() == null ? null : event.getResponses().get(userId);
 		if ("accepted".equals(answer)) {

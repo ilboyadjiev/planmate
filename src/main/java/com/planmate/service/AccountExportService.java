@@ -137,6 +137,8 @@ public class AccountExportService {
 				.map(e -> event(e, id)).collect(Collectors.toList()));
 		events.put("joined", mongo.find(new Query(Criteria.where("attendeeIds").is(id)).with(soonest),
 				EventDoc.class).stream().map(e -> event(e, id)).collect(Collectors.toList()));
+		events.put("answeredMaybe", mongo.find(new Query(Criteria.where("maybeIds").is(id)).with(soonest),
+				EventDoc.class).stream().map(e -> event(e, id)).collect(Collectors.toList()));
 		events.put("fromTheOldCalendar", legacyEvents.getAllEventsForUsername(user.getUsername()).stream()
 				.map(AccountExportService::legacyEvent).collect(Collectors.toList()));
 		return events;

@@ -37,6 +37,11 @@ public class EventDoc {
 	/** User ids (as strings) of people who joined this public event from the feed. */
 	private List<String> attendeeIds = new ArrayList<>();
 	/**
+	 * User ids (as strings) of people who answered Maybe to this public event without being invited. Never also in
+	 * attendeeIds. Like attendees, it shows in their calendar.
+	 */
+	private List<String> maybeIds = new ArrayList<>();
+	/**
 	 * Invitees' answers: participant user id -> "accepted", "maybe" or "declined". A participant without an entry
 	 * has not answered yet.
 	 */
@@ -170,6 +175,14 @@ public class EventDoc {
 
 	public void setAttendeeIds(List<String> attendeeIds) {
 		this.attendeeIds = attendeeIds;
+	}
+
+	public List<String> getMaybeIds() {
+		return maybeIds;
+	}
+
+	public void setMaybeIds(List<String> maybeIds) {
+		this.maybeIds = maybeIds;
 	}
 
 	public Map<String, String> getResponses() {

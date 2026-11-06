@@ -202,7 +202,8 @@ public class EventSearchService {
 				: new Criteria().orOperator(Criteria.where("isPublic").is(true),
 						Criteria.where("creatorId").is(viewer.email),
 						Criteria.where("participantIds").is(viewer.id),
-						Criteria.where("attendeeIds").is(viewer.id));
+						Criteria.where("attendeeIds").is(viewer.id),
+						Criteria.where("maybeIds").is(viewer.id));
 
 		List<Criteria> matches = new ArrayList<>();
 		// Words are letters and digits only (SearchText), so they need no escaping. The stem is a prefix of the

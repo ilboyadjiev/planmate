@@ -52,7 +52,7 @@ public class EventMongoService {
 			existing.getResponses().keySet().retainAll(
 					updatedData.getParticipantIds() == null ? List.of() : updatedData.getParticipantIds());
 		}
-		// attendeeIds and responses are otherwise left alone: only join/leave and respond change them
+		// attendeeIds, maybeIds and responses are otherwise left alone: only answering changes them
 		return repository.save(existing);
 	}
 
@@ -74,8 +74,23 @@ public class EventMongoService {
 	
 	/** Adds the user to the event's attendees. Atomic, so concurrent joins never overwrite each other. */
 	public void addAttendee(String eventId, String userId) {
-		mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(eventId)),
-				new Update().addToSet("attendeeIds", userId), EventDoc.class);
+		setAttendance(eventId, userId, "accepted");
+	}
+
+	/**
+	 * Someone not invited answers a public event: accepted (going), maybe, or declined (neither, so it leaves their
+	 * calendar). Atomic; a person is in at most one of attendeeIds and maybeIds.
+	 */
+	public void setAttendance(String eventId, String userId, String response) {
+		Update update = new Update();
+		if ("accepted".equals(response)) {
+			update.addToSet("attendeeIds", userId).pull("maybeIds", userId);
+		} else if ("maybe".equals(response)) {
+			update.addToSet("maybeIds", userId).pull("attendeeIds", userId);
+		} else {
+			update.pull("attendeeIds", userId).pull("maybeIds", userId);
+		}
+		mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(eventId)), update, EventDoc.class);
 	}
 
 	/** Records an invitee's answer. userId is a numeric user id, so it is safe as a field name. */
@@ -85,8 +100,7 @@ public class EventMongoService {
 	}
 
 	public void removeAttendee(String eventId, String userId) {
-		mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(eventId)),
-				new Update().pull("attendeeIds", userId), EventDoc.class);
+		setAttendance(eventId, userId, "declined");
 	}
 
 	/**
@@ -107,9 +121,10 @@ public class EventMongoService {
 	public void removeUserData(String email, String userId) {
 		mongoTemplate.remove(Query.query(Criteria.where("creatorId").is(email)), EventDoc.class);
 		Query involved = Query.query(new Criteria().orOperator(Criteria.where("participantIds").is(userId),
-				Criteria.where("attendeeIds").is(userId), Criteria.where("responses." + userId).exists(true)));
+				Criteria.where("attendeeIds").is(userId), Criteria.where("maybeIds").is(userId),
+				Criteria.where("responses." + userId).exists(true)));
 		mongoTemplate.updateMulti(involved, new Update().pull("participantIds", userId).pull("attendeeIds", userId)
-				.unset("responses." + userId), EventDoc.class);
+				.pull("maybeIds", userId).unset("responses." + userId), EventDoc.class);
 	}
 
 	public void mergeGuestEvents(String guestId, String realUserId) {

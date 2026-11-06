@@ -127,6 +127,29 @@ class EventMongoRepositoryTest {
 	}
 
 	@Test
+	void aPublicEventAnsweredGoingOrMaybeIsInTheCalendarAndCantGoTakesItOut() {
+		Instant when = Instant.parse("2026-11-20T19:00:00Z");
+		EventDoc concert = save(PREFIX + "concert", BOB, when);
+		java.util.function.Supplier<Boolean> inAlicesCalendar = () -> repository
+				.findCreatedOrParticipatingInRange(ALICE, ALICE_ID, when.minusSeconds(3600), when.plusSeconds(3600))
+				.stream().anyMatch(e -> e.getId().equals(concert.getId()));
+
+		eventService.setAttendance(concert.getId(), ALICE_ID, "maybe");
+		assertEquals(Arrays.asList(ALICE_ID), repository.findById(concert.getId()).get().getMaybeIds());
+		assertEquals(true, inAlicesCalendar.get());
+
+		eventService.setAttendance(concert.getId(), ALICE_ID, "accepted"); // one answer at a time
+		EventDoc going = repository.findById(concert.getId()).get();
+		assertEquals(Arrays.asList(ALICE_ID), going.getAttendeeIds());
+		assertEquals(true, going.getMaybeIds().isEmpty());
+
+		eventService.setAttendance(concert.getId(), ALICE_ID, "declined");
+		EventDoc declined = repository.findById(concert.getId()).get();
+		assertEquals(true, declined.getAttendeeIds().isEmpty() && declined.getMaybeIds().isEmpty());
+		assertEquals(false, inAlicesCalendar.get());
+	}
+
+	@Test
 	void deletingAnAccountRemovesTheirEventsAndTheirPlaceOnOthers() {
 		Instant when = Instant.parse("2026-11-20T19:00:00Z");
 		EventDoc mine = save(PREFIX + "alice's party", ALICE, when);
@@ -134,6 +157,7 @@ class EventMongoRepositoryTest {
 		invite.getResponses().put(ALICE_ID, "accepted");
 		invite.getResponses().put("7", "maybe");
 		invite.setAttendeeIds(new ArrayList<>(Arrays.asList(ALICE_ID, "8")));
+		invite.setMaybeIds(new ArrayList<>(Arrays.asList(ALICE_ID, "9")));
 		repository.save(invite);
 
 		eventService.removeUserData(ALICE, ALICE_ID);
@@ -142,6 +166,7 @@ class EventMongoRepositoryTest {
 		EventDoc after = repository.findById(invite.getId()).get();
 		assertEquals(Arrays.asList("7"), after.getParticipantIds());
 		assertEquals(Arrays.asList("8"), after.getAttendeeIds());
+		assertEquals(Arrays.asList("9"), after.getMaybeIds());
 		assertEquals(java.util.Map.of("7", "maybe"), after.getResponses());
 	}
 
