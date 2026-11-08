@@ -9,7 +9,6 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import com.planmate.dto.User;
-import com.planmate.exception.BusinessLogicException;
 
 @Service
 public class UserDetailsServiceImpl implements UserDetailsService {
@@ -21,7 +20,9 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 	public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
 		User user = userService.getUserByEmail(email);
 		if (user == null) {
-			throw new BusinessLogicException("User not found: " + email);
+			// UsernameNotFoundException (not a custom exception) so Spring maps it to BadCredentials: an unknown
+			// email and a wrong password then look identical to the client, closing user enumeration.
+			throw new UsernameNotFoundException("User not found: " + email);
 		}
 		return new org.springframework.security.core.userdetails.User(user.getEmail(), user.getPassword(), new ArrayList<>());
 	}

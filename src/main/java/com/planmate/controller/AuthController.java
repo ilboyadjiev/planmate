@@ -14,8 +14,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -87,7 +87,9 @@ public class AuthController {
 			return ResponseEntity.ok(
 					new JwtResponse(accessToken, refreshToken, currentUser.getUsername(), currentUser.getFirstName(), currentUser.getEmail()));
 
-		} catch (BadCredentialsException e) {
+		} catch (AuthenticationException e) {
+			// Every authentication failure (wrong password, unknown user, disabled, etc.) looks the same to the
+			// client, so the response never reveals whether an email is registered.
 			return new ResponseEntity<>("Incorrect email or password", HttpStatus.UNAUTHORIZED);
 		} catch (Exception e) {
 			logger.error("Login failed", e);

@@ -29,6 +29,10 @@ public class SecurityConfig {
 	@Value("${application.security.disabled:false}")
 	private boolean securityDisabled;
 
+	/** Origins allowed to call the API from a browser. Never "*": credentials are allowed (see corsFilter). */
+	@Value("${app.cors.allowed-origins}")
+	private List<String> allowedOrigins;
+
 	@Autowired
 	private AuthRequestFilter authRequestFilter;
 
@@ -77,8 +81,10 @@ public class SecurityConfig {
 	public CorsFilter corsFilter() {
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		CorsConfiguration config = new CorsConfiguration();
+		// Credentials are allowed, so the origin list must be explicit — never "*", which would let any site
+		// make credentialed calls and read the responses.
 		config.setAllowCredentials(true);
-		config.setAllowedOriginPatterns(List.of("*"));
+		config.setAllowedOrigins(allowedOrigins);
 		config.addAllowedHeader("*");
 		config.addAllowedMethod("*");
 		source.registerCorsConfiguration("/**", config);
