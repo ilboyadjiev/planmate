@@ -429,6 +429,8 @@ public class EventMongoController {
 	@GetMapping("/feed")
 	public ResponseEntity<FeedService.FeedPage> getFeedEvents(@RequestParam(required = false) String tag,
 			@RequestParam(required = false) Long group, @RequestParam(defaultValue = "false") boolean nearby,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "5") int size, Principal principal) {
 		String viewer = principal == null ? null : principal.getName();
@@ -436,15 +438,15 @@ public class EventMongoController {
 			if (viewer == null) {
 				throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
 			}
-			return ResponseEntity.ok(feedService.getGroupFeed(viewer, group, page, size));
+			return ResponseEntity.ok(feedService.getGroupFeed(viewer, group, page, size, from, to));
 		}
 		if (nearby) {
 			if (viewer == null) {
 				throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
 			}
-			return ResponseEntity.ok(feedService.getNearbyFeed(viewer, page, size));
+			return ResponseEntity.ok(feedService.getNearbyFeed(viewer, page, size, from, to));
 		}
-		return ResponseEntity.ok(feedService.getFeed(viewer, tag, page, size));
+		return ResponseEntity.ok(feedService.getFeed(viewer, tag, page, size, from, to));
 	}
 
 	/** An invitee answers an invitation: accepted, maybe or declined. Only invited participants may answer. */

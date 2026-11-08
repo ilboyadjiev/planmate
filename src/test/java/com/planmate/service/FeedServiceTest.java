@@ -106,6 +106,50 @@ class FeedServiceTest {
 	}
 
 	@Test
+	void aDateWindowKeepsOnlyEventsInRangeOnTopOfTheOtherFilters() {
+		candidates(event("in-one-day", BOB, Duration.ofDays(1)), event("in-five-days", CAROL, Duration.ofDays(5)),
+				event("in-ten-days", BOB, Duration.ofDays(10)));
+		Instant from = NOW.plus(Duration.ofDays(4));
+		Instant to = NOW.plus(Duration.ofDays(6));
+
+		assertEquals(Arrays.asList("in-five-days"), ids(feed.getFeed(ALICE, null, 0, 10, NOW, from, to)));
+		// An open-ended "to" keeps everything from the start day on (order is up to ranking)
+		assertEquals(new java.util.HashSet<>(Arrays.asList("in-five-days", "in-ten-days")),
+				new java.util.HashSet<>(ids(feed.getFeed(ALICE, null, 0, 10, NOW, from, null))));
+		// No window is the same feed as before
+		assertEquals(3, feed.getFeed(ALICE, null, 0, 10, NOW, null, null).getEvents().size());
+	}
+
+	@Test
+	void theWindowKeepsMultiDayEventsThatOverlapIt() {
+		EventDoc exhibition = event("exhibition", BOB, Duration.ofDays(1));
+		exhibition.setEndTime(NOW.plus(Duration.ofDays(10))); // runs day 1 to day 10
+
+		// A window in the middle of the run (days 4-6) still keeps it
+		assertEquals(true, FeedService.matchesWindow(exhibition, NOW.plus(Duration.ofDays(4)), NOW.plus(Duration.ofDays(6))));
+		// A window entirely after it does not
+		assertEquals(false, FeedService.matchesWindow(exhibition, NOW.plus(Duration.ofDays(11)), NOW.plus(Duration.ofDays(12))));
+		// A window entirely before it does not
+		assertEquals(false, FeedService.matchesWindow(exhibition, NOW.minus(Duration.ofDays(2)), NOW.minus(Duration.ofDays(1))));
+	}
+
+	@Test
+	void anAllDayEventEndingAtTheWindowStartDoesNotLeakIn() {
+		Instant from = NOW.plus(Duration.ofDays(2));
+		Instant to = from.plus(Duration.ofDays(1));
+		EventDoc allDayDayBefore = event("all-day", BOB, Duration.ofDays(1));
+		allDayDayBefore.setStartTime(from.minus(Duration.ofDays(1))); // midnight the day before
+		allDayDayBefore.setEndTime(from);                             // to midnight = the window start
+		assertEquals(false, FeedService.matchesWindow(allDayDayBefore, from, to));
+
+		// A single-moment event (no end) exactly at the window start is kept
+		EventDoc atStart = event("at-start", BOB, Duration.ofDays(2));
+		atStart.setStartTime(from);
+		atStart.setEndTime(null);
+		assertEquals(true, FeedService.matchesWindow(atStart, from, to));
+	}
+
+	@Test
 	void guestsGetSoonAndPopularFirst() {
 		candidates(event("later", BOB, Duration.ofDays(5), "2"), event("tomorrow", CAROL, Duration.ofDays(1)));
 

@@ -1,7 +1,9 @@
 package com.planmate.controller2;
 
 import java.security.Principal;
+import java.time.Instant;
 
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -30,8 +32,10 @@ public class EventSearchController {
 
 	@GetMapping("/search")
 	public ResponseEntity<FeedService.FeedPage> search(@RequestParam(name = "q", defaultValue = "") String query,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
 			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
 			Principal principal) {
-		return ResponseEntity.ok(searchService.search(principal == null ? null : principal.getName(), query, page, size));
+		return ResponseEntity.ok(searchService.search(principal == null ? null : principal.getName(), query, page, size, from, to));
 	}
 }

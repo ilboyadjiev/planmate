@@ -115,10 +115,19 @@ public class EventSearchService {
 	}
 
 	public FeedPage search(String viewerEmail, String query, int page, int size) {
-		return search(viewerEmail, query, page, size, Instant.now());
+		return search(viewerEmail, query, page, size, null, null);
+	}
+
+	/** As search, limited to events in the date window [from, to] (either bound may be null). */
+	public FeedPage search(String viewerEmail, String query, int page, int size, Instant fromDate, Instant toDate) {
+		return search(viewerEmail, query, page, size, Instant.now(), fromDate, toDate);
 	}
 
 	FeedPage search(String viewerEmail, String query, int page, int size, Instant now) {
+		return search(viewerEmail, query, page, size, now, null, null);
+	}
+
+	FeedPage search(String viewerEmail, String query, int page, int size, Instant now, Instant fromDate, Instant toDate) {
 		int pageSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
 		int pageIndex = Math.max(0, page);
 		List<String> words = SearchText.queryTokens(StringUtils.left(query, MAX_QUERY_LENGTH), MAX_QUERY_WORDS);
@@ -131,7 +140,8 @@ public class EventSearchService {
 		feedService.rememberGoingVisibility(viewer, viewer.friendsById.values());
 		Names names = new Names(words, viewer, viewer.id == null ? Collections.emptyList()
 				: friendGroupService.groupsOf(viewerEmail));
-		List<EventDoc> candidates = mongo.find(candidateQuery(words, viewer, names, now), EventDoc.class);
+		List<EventDoc> candidates = FeedService.inWindow(
+				mongo.find(candidateQuery(words, viewer, names, now), EventDoc.class), fromDate, toDate);
 		List<Hit> hits = rank(candidates, words, viewer, names, now);
 
 		long from = (long) pageIndex * pageSize;

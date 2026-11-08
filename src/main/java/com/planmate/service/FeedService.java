@@ -17,7 +17,6 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -186,10 +185,19 @@ public class FeedService {
 	 * Only members of the group may read it (404 otherwise, so group ids cannot be probed).
 	 */
 	public FeedPage getGroupFeed(String viewerEmail, Long groupId, int page, int size) {
-		return getGroupFeed(viewerEmail, groupId, page, size, Instant.now());
+		return getGroupFeed(viewerEmail, groupId, page, size, null, null);
+	}
+
+	/** As getGroupFeed, limited to events in the date window [from, to] (either bound may be null). */
+	public FeedPage getGroupFeed(String viewerEmail, Long groupId, int page, int size, Instant from, Instant to) {
+		return getGroupFeed(viewerEmail, groupId, page, size, Instant.now(), from, to);
 	}
 
 	FeedPage getGroupFeed(String viewerEmail, Long groupId, int page, int size, Instant now) {
+		return getGroupFeed(viewerEmail, groupId, page, size, now, null, null);
+	}
+
+	FeedPage getGroupFeed(String viewerEmail, Long groupId, int page, int size, Instant now, Instant from, Instant to) {
 		Viewer viewer = viewer(viewerEmail);
 		if (viewer.id == null) {
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
@@ -200,23 +208,38 @@ public class FeedService {
 
 		int pageSize = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
 		int pageIndex = Math.max(0, page);
-		Page<EventDoc> events = repository.findUpcomingForGroupMember(String.valueOf(groupId), now, viewerEmail,
-				viewer.id, PageRequest.of(pageIndex, pageSize, Sort.by("startTime").ascending()));
+		// Load the group's upcoming events (chronological), filter by the date window, then page in memory.
+		List<EventDoc> events = inWindow(repository.findUpcomingForGroupMember(String.valueOf(groupId), now,
+				viewerEmail, viewer.id, candidates()).getContent(), from, to);
 
 		// Group members share the group, so they may see each other's names on the cards
 		Map<String, User> members = group.getMembers().stream()
 				.collect(Collectors.toMap(m -> String.valueOf(m.getId()), m -> m, (a, b) -> a));
 		Map<String, User> hosts = new HashMap<>();
-		List<FeedEvent> cards = events.getContent().stream().map(e -> toFeedEvent(e, viewer, hosts, members))
-				.collect(Collectors.toList());
-		return new FeedPage(cards, pageIndex, events.hasNext());
+		long fromIndex = (long) pageIndex * pageSize;
+		if (fromIndex >= events.size()) {
+			return new FeedPage(Collections.emptyList(), pageIndex, false);
+		}
+		int toIndex = (int) Math.min(events.size(), fromIndex + pageSize);
+		List<FeedEvent> cards = events.subList((int) fromIndex, toIndex).stream()
+				.map(e -> toFeedEvent(e, viewer, hosts, members)).collect(Collectors.toList());
+		return new FeedPage(cards, pageIndex, toIndex < events.size());
 	}
 
 	public FeedPage getFeed(String viewerEmail, String tag, int page, int size) {
-		return getFeed(viewerEmail, tag, page, size, Instant.now());
+		return getFeed(viewerEmail, tag, page, size, null, null);
+	}
+
+	/** As getFeed, limited to events in the date window [from, to] (either bound may be null). */
+	public FeedPage getFeed(String viewerEmail, String tag, int page, int size, Instant from, Instant to) {
+		return getFeed(viewerEmail, tag, page, size, Instant.now(), from, to);
 	}
 
 	FeedPage getFeed(String viewerEmail, String tag, int page, int size, Instant now) {
+		return getFeed(viewerEmail, tag, page, size, now, null, null);
+	}
+
+	FeedPage getFeed(String viewerEmail, String tag, int page, int size, Instant now, Instant from, Instant to) {
 		String normalizedTag = normalizeTag(tag);
 		Pageable candidates = candidates();
 		List<EventDoc> events = normalizedTag == null ? repository.findUpcomingPublic(now, candidates)
@@ -225,6 +248,7 @@ public class FeedService {
 		if (normalizedTag == null) {
 			events = inViewersCity(events, viewer);
 		}
+		events = inWindow(events, from, to);
 		// Hidden topics stay out of "For you"; choosing a tag chip still shows that tag's events
 		return rankedPage(events, viewer, page, size, now, normalizedTag == null);
 	}
@@ -234,10 +258,19 @@ public class FeedService {
 	 * Without a city in the profile the page is empty and its city is null, so the app can ask for one.
 	 */
 	public FeedPage getNearbyFeed(String viewerEmail, int page, int size) {
-		return getNearbyFeed(viewerEmail, page, size, Instant.now());
+		return getNearbyFeed(viewerEmail, page, size, null, null);
+	}
+
+	/** As getNearbyFeed, limited to events in the date window [from, to] (either bound may be null). */
+	public FeedPage getNearbyFeed(String viewerEmail, int page, int size, Instant from, Instant to) {
+		return getNearbyFeed(viewerEmail, page, size, Instant.now(), from, to);
 	}
 
 	FeedPage getNearbyFeed(String viewerEmail, int page, int size, Instant now) {
+		return getNearbyFeed(viewerEmail, page, size, now, null, null);
+	}
+
+	FeedPage getNearbyFeed(String viewerEmail, int page, int size, Instant now, Instant from, Instant to) {
 		User me = viewerEmail == null ? null : userService.getUserByEmail(viewerEmail);
 		if (me == null) {
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
@@ -247,8 +280,8 @@ public class FeedService {
 			return new FeedPage(Collections.emptyList(), Math.max(0, page), false, null);
 		}
 		String quoted = Pattern.quote(city);
-		List<EventDoc> events = repository.findUpcomingPublicInCity(now, "^" + quoted + "$",
-				"(^|[^\\p{L}])" + quoted + "($|[^\\p{L}])", cityTag(city), candidates());
+		List<EventDoc> events = inWindow(repository.findUpcomingPublicInCity(now, "^" + quoted + "$",
+				"(^|[^\\p{L}])" + quoted + "($|[^\\p{L}])", cityTag(city), candidates()), from, to);
 		FeedPage ranked = rankedPage(events, viewer(viewerEmail), page, size, now, true);
 		return new FeedPage(ranked.getEvents(), ranked.getPage(), ranked.isHasMore(), city);
 	}
@@ -265,6 +298,37 @@ public class FeedService {
 		return events.stream()
 				.filter(e -> e.getDiscoverySource() == null || e.getCityTag() == null || viewer.cityTag.equals(e.getCityTag()))
 				.collect(Collectors.toList());
+	}
+
+	/**
+	 * Keeps the events that fall in the date window [from, to] (either bound may be null = open). A multi-day event
+	 * matches when any part of it overlaps the window. Used to add a date filter on top of the other feed filters.
+	 */
+	static List<EventDoc> inWindow(List<EventDoc> events, Instant from, Instant to) {
+		if (from == null && to == null) {
+			return events;
+		}
+		return events.stream().filter(e -> matchesWindow(e, from, to)).collect(Collectors.toList());
+	}
+
+	static boolean matchesWindow(EventDoc event, Instant from, Instant to) {
+		Instant start = event.getStartTime();
+		if (start == null) {
+			return false;
+		}
+		if (to != null && start.isAfter(to)) {
+			return false; // the event starts after the window
+		}
+		if (from != null) {
+			Instant end = event.getEndTime();
+			// An event with an end spans [start, end): the end is exclusive, so an all-day event on the day before
+			// (which ends at midnight, the window's start) does not count as overlapping. An event with no end is a
+			// single moment and counts when it is at or after the window start.
+			if (end != null ? !end.isAfter(from) : start.isBefore(from)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/** "New York" becomes "#newyork" and "München" becomes "#munich", like automatic event city tags. */
