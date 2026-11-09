@@ -102,6 +102,11 @@ services:
       - 'TMDB_API_KEY=${TMDB_API_KEY}'
       - 'GEMINI_DISCOVERY_API_KEY=${GEMINI_DISCOVERY_API_KEY}'
       - 'GEMINI_DISCOVERY_MODEL=${GEMINI_DISCOVERY_MODEL}'
+      # Google calendars a PlanMate ingestion account subscribed to; all three empty keeps it off
+      - 'GOOGLE_CALENDAR_ENABLED=${GOOGLE_CALENDAR_ENABLED:-false}'
+      - 'GOOGLE_CALENDAR_CLIENT_ID=${GOOGLE_CALENDAR_CLIENT_ID:-}'
+      - 'GOOGLE_CALENDAR_CLIENT_SECRET=${GOOGLE_CALENDAR_CLIENT_SECRET:-}'
+      - 'GOOGLE_CALENDAR_REFRESH_TOKEN=${GOOGLE_CALENDAR_REFRESH_TOKEN:-}'
       # Edit ./discovery/curated-events.yml on the server; discovery picks it up on its next curated run
       - 'CURATED_EVENTS_FILE=file:/config/curated-events.yml'
       # Edit ./discovery/web-feeds.yml on the server (venue and city calendars); read again on every feeds run
