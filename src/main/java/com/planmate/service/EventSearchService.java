@@ -242,7 +242,11 @@ public class EventSearchService {
 			matches.add(Criteria.where("groupIds").in(groupIds));
 		}
 
-		return new Query(new Criteria().andOperator(Criteria.where("endTime").gt(now), Criteria.where("cancelled").ne(true), visible,
+		// Not ended yet: it has an end in the future, or it has no end and has not started. Discovery events often
+		// have no end (the AI only found a start), so filtering on endTime alone would hide every one of them.
+		Criteria notEnded = new Criteria().orOperator(Criteria.where("endTime").gt(now),
+				new Criteria().andOperator(Criteria.where("endTime").is(null), Criteria.where("startTime").gt(now)));
+		return new Query(new Criteria().andOperator(notEnded, Criteria.where("cancelled").ne(true), visible,
 				new Criteria().orOperator(matches.toArray(new Criteria[0]))))
 				.with(Sort.by("startTime").ascending())
 				.limit(MAX_CANDIDATES);

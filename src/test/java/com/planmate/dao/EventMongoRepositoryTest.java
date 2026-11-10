@@ -107,6 +107,32 @@ class EventMongoRepositoryTest {
 				titles(repository.findUpcomingPublicWithTag(now, "#munich", all)));
 	}
 
+	@Test
+	void feedShowsPublicEventsWithNoEndTimeWhileTheyHaveNotStarted() {
+		// Discovery events from web feeds usually have no end time (the AI only found a start). They must still show
+		// while they have not started; filtering on endTime alone hid every one of them.
+		Instant now = Instant.parse("2026-11-03T12:00:00Z");
+		created.add(repository.save(noEndPublic(PREFIX + "no-end future", now.plusSeconds(86400))));
+		created.add(repository.save(noEndPublic(PREFIX + "no-end past", now.minusSeconds(86400))));
+		PageRequest all = PageRequest.of(0, 1000, Sort.by("startTime"));
+
+		Set<String> titles = titles(repository.findUpcomingPublic(now, all));
+		org.junit.jupiter.api.Assertions.assertTrue(titles.contains(PREFIX + "no-end future"),
+				"a public event with no end time shows while it has not started");
+		org.junit.jupiter.api.Assertions.assertFalse(titles.contains(PREFIX + "no-end past"),
+				"a public event with no end time is gone once it has started");
+	}
+
+	private EventDoc noEndPublic(String title, Instant start) {
+		EventDoc e = new EventDoc();
+		e.setTitle(title);
+		e.setCreatorId(BOB);
+		e.setStartTime(start);
+		e.setEndTime(null);
+		e.setIsPublic(true);
+		return e;
+	}
+
 	@Autowired
 	private com.planmate.service.EventMongoService eventService;
 
