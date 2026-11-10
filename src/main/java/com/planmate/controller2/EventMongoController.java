@@ -391,6 +391,31 @@ public class EventMongoController {
 				eventService.countUnansweredInvitations(myId, principal.getName(), Instant.now())));
 	}
 
+	/** The caller's upcoming invitations they have not answered or dismissed, soonest first (for the list). */
+	@GetMapping("/invitations")
+	public ResponseEntity<List<EventDoc>> listUnansweredInvitations(Principal principal) {
+		String myId = requireUserId(principal);
+		List<EventDoc> events = eventService.listUnansweredInvitations(myId, principal.getName(), Instant.now());
+		Map<String, User> hostCache = new HashMap<>();
+		Map<String, Map<String, Object>> people = new HashMap<>();
+		Set<String> myGroupIds = groupIdsOf(principal.getName());
+		for (EventDoc event : events) {
+			forInvitee(event, principal.getName(), hostCache, people, myGroupIds);
+		}
+		return ResponseEntity.ok(events);
+	}
+
+	/** Dismiss an invitation from the caller's invitations list; the event stays in their calendar, unanswered. */
+	@PostMapping("/{id}/invitation/dismiss")
+	public ResponseEntity<Void> dismissInvitation(@PathVariable String id, Principal principal) {
+		String myId = requireUserId(principal);
+		if (!contains(findEvent(id).getParticipantIds(), myId)) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Event not found.");
+		}
+		eventService.dismissInvitation(id, myId);
+		return ResponseEntity.noContent().build();
+	}
+
 	/**
 	 * Events the caller created plus events they were invited to. creatorId is only read for guests;
 	 * logged-in users are identified by their token.

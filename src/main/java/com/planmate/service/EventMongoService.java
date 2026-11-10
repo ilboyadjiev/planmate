@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -97,13 +98,33 @@ public class EventMongoService {
 	 * Invitations the user has not answered yet, for the navbar's badge: upcoming, not cancelled, hosted by
 	 * someone else. userId is a numeric user id, so it is safe in a field name.
 	 */
-	public long countUnansweredInvitations(String userId, String email, Instant now) {
-		Query unanswered = Query.query(Criteria.where("participantIds").is(userId)
+	/**
+	 * Upcoming events the user was invited to but has neither answered nor dismissed. dismissedBy lets a user clear
+	 * an invitation from their invitations list while the event stays in their calendar (still unanswered).
+	 */
+	private static Query unansweredInvitations(String userId, String email, Instant now) {
+		return Query.query(Criteria.where("participantIds").is(userId)
 				.and("creatorId").ne(email)
 				.and("cancelled").ne(true)
 				.and("endTime").gt(now)
-				.and("responses." + userId).exists(false));
-		return mongoTemplate.count(unanswered, EventDoc.class);
+				.and("responses." + userId).exists(false)
+				.and("dismissedBy").ne(userId));
+	}
+
+	public long countUnansweredInvitations(String userId, String email, Instant now) {
+		return mongoTemplate.count(unansweredInvitations(userId, email, now), EventDoc.class);
+	}
+
+	/** The same invitations as the count, as events, soonest first, for the invitations list. */
+	public List<EventDoc> listUnansweredInvitations(String userId, String email, Instant now) {
+		return mongoTemplate.find(unansweredInvitations(userId, email, now)
+				.with(Sort.by(Sort.Direction.ASC, "startTime")), EventDoc.class);
+	}
+
+	/** Dismiss an invitation from the invitations list without answering it (the event stays in the calendar). */
+	public void dismissInvitation(String eventId, String userId) {
+		mongoTemplate.updateFirst(Query.query(Criteria.where("_id").is(eventId)),
+				new Update().addToSet("dismissedBy", userId), EventDoc.class);
 	}
 
 	/** Records an invitee's answer. userId is a numeric user id, so it is safe as a field name. */
@@ -135,9 +156,9 @@ public class EventMongoService {
 		mongoTemplate.remove(Query.query(Criteria.where("creatorId").is(email)), EventDoc.class);
 		Query involved = Query.query(new Criteria().orOperator(Criteria.where("participantIds").is(userId),
 				Criteria.where("attendeeIds").is(userId), Criteria.where("maybeIds").is(userId),
-				Criteria.where("responses." + userId).exists(true)));
+				Criteria.where("dismissedBy").is(userId), Criteria.where("responses." + userId).exists(true)));
 		mongoTemplate.updateMulti(involved, new Update().pull("participantIds", userId).pull("attendeeIds", userId)
-				.pull("maybeIds", userId).unset("responses." + userId), EventDoc.class);
+				.pull("maybeIds", userId).pull("dismissedBy", userId).unset("responses." + userId), EventDoc.class);
 	}
 
 	public void mergeGuestEvents(String guestId, String realUserId) {

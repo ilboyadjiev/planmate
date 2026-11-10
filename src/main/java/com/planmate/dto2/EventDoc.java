@@ -69,6 +69,9 @@ public class EventDoc {
 	private String discoverySource;
 	@JsonIgnore
 	private Long discoveryVersion;
+	/** Users who dismissed this invitation from their invitations list (the event stays in their calendar). */
+	@JsonIgnore
+	private List<String> dismissedBy = new ArrayList<>();
 	/** The event's page at its source, e.g. its Ticketmaster page. */
 	private String sourceUrl;
 	/** A picture for the event (poster or promo image) from its source; null for user-created events. */
@@ -281,6 +284,14 @@ public class EventDoc {
 	@JsonIgnore
 	public void setDiscoveryVersion(Long discoveryVersion) {
 		this.discoveryVersion = discoveryVersion;
+	}
+
+	public List<String> getDismissedBy() {
+		return dismissedBy;
+	}
+
+	public void setDismissedBy(List<String> dismissedBy) {
+		this.dismissedBy = dismissedBy;
 	}
 
 	public String getSourceUrl() {

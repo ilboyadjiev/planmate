@@ -340,6 +340,28 @@ class EventMongoControllerTest {
 	}
 
 	@Test
+	void unansweredInvitationsAreListedForTheCaller() {
+		when(service.listUnansweredInvitations(eq("3"), eq(CAROL), any()))
+				.thenReturn(java.util.List.of(event("dinner", ALICE, false, "3")));
+
+		var body = controller.listUnansweredInvitations(user(CAROL)).getBody();
+		assertEquals(1, body.size());
+		assertEquals("dinner", body.get(0).getId());
+		assertEquals(HttpStatus.UNAUTHORIZED, statusOf(() -> controller.listUnansweredInvitations(null)));
+	}
+
+	@Test
+	void anInvitationIsDismissedOnlyByAnInvitee() {
+		when(service.getEventById("concert")).thenReturn(event("concert", ALICE, false, "3")); // Carol (id 3) invited
+
+		assertEquals(HttpStatus.NO_CONTENT, controller.dismissInvitation("concert", user(CAROL)).getStatusCode());
+		verify(service).dismissInvitation("concert", "3");
+
+		assertEquals(HttpStatus.NOT_FOUND, statusOf(() -> controller.dismissInvitation("concert", user(BOB))));
+		assertEquals(HttpStatus.UNAUTHORIZED, statusOf(() -> controller.dismissInvitation("concert", null)));
+	}
+
+	@Test
 	void publicEventsCanBeAnsweredGoingMaybeOrCantGo() {
 		when(service.getEventById("concert")).thenReturn(attended("concert", BOB));
 
