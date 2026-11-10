@@ -35,6 +35,7 @@ public class DiscoveryMessage {
 		private String source;
 		private String sourceName;
 		private String sourceUrl;
+		private String imageUrl;
 		private boolean cancelled;
 
 		public String getId() { return id; }
@@ -57,6 +58,8 @@ public class DiscoveryMessage {
 		public void setSourceName(String sourceName) { this.sourceName = sourceName; }
 		public String getSourceUrl() { return sourceUrl; }
 		public void setSourceUrl(String sourceUrl) { this.sourceUrl = sourceUrl; }
+		public String getImageUrl() { return imageUrl; }
+		public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
 		public boolean isCancelled() { return cancelled; }
 		public void setCancelled(boolean cancelled) { this.cancelled = cancelled; }
 	}

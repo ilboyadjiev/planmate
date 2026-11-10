@@ -83,6 +83,7 @@ public class DiscoveryEventImporter {
 		doc.setCreatorId(creator);
 		doc.setCancelled(cancelled ? Boolean.TRUE : null);
 		doc.setSourceUrl(webLink(e.getSourceUrl()));
+		doc.setImageUrl(webLink(e.getImageUrl()));
 		doc.setDiscoverySource(e.getSource());
 		doc.setDiscoveryVersion(message.getVersion());
 		cityTags.apply(doc, previousCityTag);

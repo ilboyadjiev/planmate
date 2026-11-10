@@ -57,6 +57,7 @@ class DiscoveryEventImporterTest {
 		e.setSource("tm");
 		e.setSourceName("Ticketmaster");
 		e.setSourceUrl("https://tickets.example/jazz");
+		e.setImageUrl("https://img.example/jazz-large.jpg");
 		e.setCancelled(DiscoveryMessage.CANCELLED.equals(type));
 		DiscoveryMessage m = new DiscoveryMessage();
 		m.setType(type);
@@ -74,6 +75,7 @@ class DiscoveryEventImporterTest {
 		assertEquals("Live jazz in a cellar club.\n\nTip: Book ahead\n\nSource: Ticketmaster", doc.getDescription());
 		assertEquals(Boolean.TRUE, doc.getIsPublic());
 		assertEquals("https://tickets.example/jazz", doc.getSourceUrl());
+		assertEquals("https://img.example/jazz-large.jpg", doc.getImageUrl());
 		assertEquals("events@planmate.org", doc.getCreatorId());
 		assertNull(doc.getCancelled());
 		assertEquals(Long.valueOf(1), doc.getDiscoveryVersion());

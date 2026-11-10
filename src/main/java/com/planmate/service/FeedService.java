@@ -578,6 +578,7 @@ public class FeedService {
 		card.setTags(event.getTags() == null ? Collections.emptyList() : event.getTags());
 		card.setCancelled(Boolean.TRUE.equals(event.getCancelled()));
 		card.setSourceUrl(event.getSourceUrl());
+		card.setImageUrl(event.getImageUrl());
 		// Private events (a group's feed, search) say so on the card; public ones leave it out
 		if (!Boolean.TRUE.equals(event.getIsPublic())) {
 			card.setIsPublic(false);

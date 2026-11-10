@@ -162,6 +162,18 @@ public class FeedEvent {
 		this.sourceUrl = sourceUrl;
 	}
 
+	/** A picture for the event (discovery events), shown at the top of the card. Left out when there is none. */
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	private String imageUrl;
+
+	public String getImageUrl() {
+		return imageUrl;
+	}
+
+	public void setImageUrl(String imageUrl) {
+		this.imageUrl = imageUrl;
+	}
+
 	/**
 	 * Whether anyone may open the event: always set on the event page (GET /events/{id}/card), so it can say who the
 	 * link works for. Elsewhere only private events carry it (false); public ones leave it out.

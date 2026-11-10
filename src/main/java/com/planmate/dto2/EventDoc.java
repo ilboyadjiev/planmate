@@ -71,6 +71,8 @@ public class EventDoc {
 	private Long discoveryVersion;
 	/** The event's page at its source, e.g. its Ticketmaster page. */
 	private String sourceUrl;
+	/** A picture for the event (poster or promo image) from its source; null for user-created events. */
+	private String imageUrl;
 
 	// Response-only fields, filled per viewer (never stored)
 	@Transient
@@ -287,6 +289,14 @@ public class EventDoc {
 
 	public void setSourceUrl(String sourceUrl) {
 		this.sourceUrl = sourceUrl;
+	}
+
+	public String getImageUrl() {
+		return imageUrl;
+	}
+
+	public void setImageUrl(String imageUrl) {
+		this.imageUrl = imageUrl;
 	}
 
 	public static class EventLocation {
