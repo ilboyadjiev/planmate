@@ -37,3 +37,8 @@ application-secrets.properties
 # Local environment (secrets)
 .env
 .DS_Store
+
+logs/*
+*.jar
+docs/*
+mongo-init/*
