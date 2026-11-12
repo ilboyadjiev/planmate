@@ -33,11 +33,12 @@ public class FriendGroupDao {
 	}
 
 	public FriendGroup save(FriendGroup group) {
-		session().saveOrUpdate(group);
-		return group;
+		// Hibernate 7 removed saveOrUpdate; merge upserts and returns the managed instance.
+		return session().merge(group);
 	}
 
 	public void delete(FriendGroup group) {
-		session().delete(group);
+		// Hibernate 7 removed delete; remove needs a managed instance, so merge first if the argument is detached.
+		session().remove(session().contains(group) ? group : session().merge(group));
 	}
 }

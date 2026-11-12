@@ -51,7 +51,7 @@ public class UserSettingsDao {
 	public void delete(Long userId) {
 		UserSettings settings = get(userId);
 		if (settings != null) {
-			session().delete(settings);
+			session().remove(settings);
 		}
 	}
 }

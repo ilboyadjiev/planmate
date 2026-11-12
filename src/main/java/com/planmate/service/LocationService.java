@@ -20,7 +20,7 @@ public class LocationService {
 	private final RestTemplate restTemplate = new RestTemplate();
 
 	public List<LocationSuggestion> autocomplete(String query) {
-		String url = UriComponentsBuilder.fromHttpUrl("https://api.locationiq.com/v1/autocomplete")
+		String url = UriComponentsBuilder.fromUriString("https://api.locationiq.com/v1/autocomplete")
 				.queryParam("key", apiKey).queryParam("q", query).queryParam("limit", 5).queryParam("dedupe", 1)
 				.toUriString();
 

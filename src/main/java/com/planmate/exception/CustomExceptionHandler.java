@@ -67,6 +67,6 @@ public class CustomExceptionHandler {
 		}
 		body.put("error", reason);
 		body.put("message", reason);
-		return new ResponseEntity<>(body, ex.getResponseHeaders(), ex.getStatusCode());
+		return new ResponseEntity<>(body, ex.getHeaders(), ex.getStatusCode());
 	}
 }

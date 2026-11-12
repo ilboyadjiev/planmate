@@ -59,8 +59,8 @@ public class EventDaoImpl implements EventDAO {
 	@Override
 	public Event updateEvent(Event event) {
 		Session session = sessionFactory.getCurrentSession();
-		session.saveOrUpdate(event);
-		return event;
+		// Hibernate 7 removed saveOrUpdate; merge upserts and returns the managed instance (with a generated id).
+		return session.merge(event);
 	}
 
 	@Override

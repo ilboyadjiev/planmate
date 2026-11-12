@@ -51,8 +51,8 @@ public class UserDaoImpl implements UserDAO {
 	@Override
 	public User updateUser(User user) {
 		Session session = sessionFactory.getCurrentSession();
-		session.saveOrUpdate(user);
-		return user;
+		// Hibernate 7 removed saveOrUpdate; merge upserts and returns the managed instance (with a generated id).
+		return session.merge(user);
 	}
 
 	@Override
@@ -93,7 +93,7 @@ public class UserDaoImpl implements UserDAO {
 		Session session = sessionFactory.getCurrentSession();
 		User userToDelete = session.get(User.class, id);
 		if (userToDelete != null) {
-			session.delete(userToDelete);
+			session.remove(userToDelete);
 		}
 	}
 }

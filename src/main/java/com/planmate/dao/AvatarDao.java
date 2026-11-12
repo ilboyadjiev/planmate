@@ -37,7 +37,7 @@ public class AvatarDao {
 	public void delete(Long userId) {
 		UserAvatar avatar = get(userId);
 		if (avatar != null) {
-			session().delete(avatar);
+			session().remove(avatar);
 		}
 	}
 }

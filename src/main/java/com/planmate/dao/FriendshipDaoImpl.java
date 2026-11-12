@@ -39,14 +39,15 @@ public class FriendshipDaoImpl implements FriendshipDao {
 	@Override
 	public Friendship update(Friendship friendship) {
 		Session session = sessionFactory.getCurrentSession();
-		session.saveOrUpdate(friendship);
-		return friendship;
+		// Hibernate 7 removed saveOrUpdate; merge upserts and returns the managed instance.
+		return session.merge(friendship);
 	}
 
 	@Override
 	public Friendship delete(Friendship friendship) {
 		Session session = sessionFactory.getCurrentSession();
-		session.delete(friendship);
+		// Hibernate 7 removed delete; remove needs a managed instance, so merge first if the argument is detached.
+		session.remove(session.contains(friendship) ? friendship : session.merge(friendship));
 		return friendship;
 	}
 

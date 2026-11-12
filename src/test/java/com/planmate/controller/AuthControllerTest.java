@@ -30,7 +30,7 @@ class AuthControllerTest {
 
 	private HttpStatus login() {
 		ResponseEntity<?> response = controller.loginUser(new AuthenticationRequest(null, "a@example.com", "secret"));
-		return HttpStatus.valueOf(response.getStatusCodeValue());
+		return HttpStatus.valueOf(response.getStatusCode().value());
 	}
 
 	// A wrong password and an unknown email must look identical, or the response reveals which emails are registered.

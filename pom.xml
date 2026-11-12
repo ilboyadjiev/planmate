@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.16</version>
+		<version>4.1.2</version>
 		<relativePath /> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.boyadjiev</groupId>
@@ -23,11 +23,11 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-oauth2-client</artifactId>
+			<artifactId>spring-boot-starter-security-oauth2-client</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+			<artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -39,7 +39,7 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-web</artifactId>
+			<artifactId>spring-boot-starter-webmvc</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -55,9 +55,11 @@
 			<groupId>org.springframework.session</groupId>
 			<artifactId>spring-session-core</artifactId>
 		</dependency>
+		<!-- WAR packaging on Spring Boot 4: the embedded-Tomcat starter for WARs is now -tomcat-runtime.
+		     provided scope keeps it out of an external container but on the classpath for `java -jar` (how we run). -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-tomcat</artifactId>
+			<artifactId>spring-boot-starter-tomcat-runtime</artifactId>
 			<scope>provided</scope>
 		</dependency>
 
@@ -95,13 +97,34 @@
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- Spring Boot 4 split MockMvc test support out of starter-test into its own slice. @AutoConfigureMockMvc and
+		     the MockMvc auto-configuration live here now. Keep Logback off the test classpath (log4j2 is the binding). -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+			<exclusions>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter-logging</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
 
-		<!-- Spring Boot 3 / Spring Framework 6: springdoc 2.x (the 1.x line is for Spring Boot 2). One starter
+		<!-- Spring Boot 4 / Spring Framework 7: springdoc 3.x (2.x is for Spring Boot 3). One starter
 		     replaces the old openapi-ui / data-rest / security artifacts and covers the Spring Security integration. -->
 		<dependency>
 			<groupId>org.springdoc</groupId>
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-			<version>2.8.17</version>
+			<version>3.2.0</version>
+		</dependency>
+		<!-- Spring Boot 4 defaults to Jackson 3 (tools.jackson.*). This module restores a Jackson 2
+		     (com.fasterxml.jackson) ObjectMapper bean so the discovery Kafka listener injects unchanged; paired with
+		     spring.jackson.use-jackson2-defaults=true so API JSON output keeps Boot 3's serialization defaults (no
+		     frontend-contract drift). Deprecated bridge — revisit a full Jackson 3 migration before Spring Boot 5. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-jackson2</artifactId>
 		</dependency>
 		<!-- jjwt 0.12.x: api on the compile path, impl + jackson at runtime (0.9.1 pulled in the removed JAXB). -->
 		<dependency>
@@ -139,10 +162,18 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-mongodb</artifactId>
 		</dependency>
-		<!-- Events from the discovery service (Redpanda, Kafka API) -->
+		<!-- Events from the discovery service (Redpanda, Kafka API). Spring Boot 4 moved Kafka auto-configuration
+		     (KafkaTemplate, ProducerFactory, ...) out of the monolithic autoconfigure into the spring-boot-kafka
+		     module; the starter pulls both it and spring-kafka. Keep Logback off the classpath (log4j2 is the binding). -->
 		<dependency>
-			<groupId>org.springframework.kafka</groupId>
-			<artifactId>spring-kafka</artifactId>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-kafka</artifactId>
+			<exclusions>
+				<exclusion>
+					<groupId>org.springframework.boot</groupId>
+					<artifactId>spring-boot-starter-logging</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.kafka</groupId>
