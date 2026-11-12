@@ -1,9 +1,9 @@
 package com.planmate.dto;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 /**
  * A user's settings (Settings page). One row per user, created on their first change; until then, and for every

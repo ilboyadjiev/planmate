@@ -1,11 +1,16 @@
 package com.planmate.util;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
-import javax.annotation.PostConstruct;
+import javax.crypto.SecretKey;
+
+import jakarta.annotation.PostConstruct;
 
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,7 +19,7 @@ import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
 
 @Component
 public class JwtUtil {
@@ -61,8 +66,23 @@ public class JwtUtil {
 		return claimsResolver.apply(claims);
 	}
 
+	/**
+	 * HMAC-SHA256 signing key derived from the configured secret. The secret's bytes are hashed with SHA-256 to a
+	 * fixed 256-bit key, so any secret works (jjwt 0.12 rejects a raw key shorter than 256 bits, which jjwt 0.9.1
+	 * accepted). The derivation differs from 0.9.1's, so tokens issued before the upgrade stop validating and clients
+	 * re-authenticate once.
+	 */
+	private SecretKey signingKey() {
+		try {
+			byte[] key = MessageDigest.getInstance("SHA-256").digest(secret.getBytes(StandardCharsets.UTF_8));
+			return Keys.hmacShaKeyFor(key);
+		} catch (NoSuchAlgorithmException e) {
+			throw new IllegalStateException("SHA-256 is required to derive the JWT signing key", e);
+		}
+	}
+
 	private Claims extractAllClaims(String token) {
-		return Jwts.parser().setSigningKey(secret).parseClaimsJws(token).getBody();
+		return Jwts.parser().verifyWith(signingKey()).build().parseSignedClaims(token).getPayload();
 	}
 
 	private Boolean isTokenExpired(String token) {
@@ -101,11 +121,11 @@ public class JwtUtil {
 
     private String createToken(Map<String, Object> claims, String subject, long validity) {
         return Jwts.builder()
-                .setClaims(claims)
-                .setSubject(subject)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + validity))
-                .signWith(SignatureAlgorithm.HS256, secret)
+                .claims(claims)
+                .subject(subject)
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + validity))
+                .signWith(signingKey())
                 .compact();
     }
 }

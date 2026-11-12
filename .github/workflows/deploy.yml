@@ -50,7 +50,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 11
+          java-version: 21
           cache: maven
 
       # Runs all tests, then builds the WAR (the Docker build skips tests, so this is the gate)

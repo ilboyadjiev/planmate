@@ -37,6 +37,19 @@ class JwtUtilTest {
 	}
 
 	@Test
+	void worksWithASecretShorterThanTheRawHmacMinimum() {
+		// jjwt 0.12 rejects a raw HMAC key under 256 bits; the secret is hashed to a fixed 256-bit key so any
+		// length works. A short production secret used to fail login with WeakKeyException after the upgrade.
+		JwtUtil shortSecret = new JwtUtil();
+		ReflectionTestUtils.setField(shortSecret, "secret", "short-secret-under-32-bytes");
+		shortSecret.verifySecret();
+
+		String access = shortSecret.generateAccessToken(alice);
+		assertTrue(shortSecret.validateToken(access, "alice@example.com"));
+		assertTrue(shortSecret.isAccessToken(access));
+	}
+
+	@Test
 	void refusesMissingSecret() {
 		JwtUtil missing = new JwtUtil();
 		assertThrows(IllegalStateException.class, missing::verifySecret);

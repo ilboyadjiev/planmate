@@ -74,7 +74,7 @@ class EventMongoControllerTest {
 	}
 
 	private static HttpStatus statusOf(Runnable call) {
-		return assertThrows(ResponseStatusException.class, call::run).getStatus();
+		return HttpStatus.valueOf(assertThrows(ResponseStatusException.class, call::run).getStatusCode().value());
 	}
 
 	@BeforeEach

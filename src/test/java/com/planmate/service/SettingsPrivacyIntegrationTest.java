@@ -204,7 +204,7 @@ class SettingsPrivacyIntegrationTest {
 		set(bob, "groupAdds", "nobody");
 		ResponseStatusException refused = assertThrows(ResponseStatusException.class,
 				() -> groups.create(alice.getEmail(), "Climbing " + suffix, Arrays.asList(bob.getId(), carol.getId())));
-		assertEquals(HttpStatus.BAD_REQUEST, refused.getStatus());
+		assertEquals(HttpStatus.BAD_REQUEST, refused.getStatusCode());
 		assertTrue(refused.getReason().contains("Bob doesn't want to be added to groups"), refused.getReason());
 
 		// Others can still be added, and Bob can still make his own groups

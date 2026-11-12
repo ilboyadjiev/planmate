@@ -39,30 +39,32 @@ public class SecurityConfig {
 	@Bean
 	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 		if (securityDisabled) {
-			http.authorizeRequests().anyRequest().permitAll().and().csrf().disable();
+			http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+					.csrf(csrf -> csrf.disable());
 		} else {
-			http.cors(Customizer.withDefaults()).csrf().disable().authorizeRequests()
-					// Order matters: the first matching rule wins.
-					.antMatchers("/api/v1/auth/password").authenticated()
-					.antMatchers("/api/v1/auth/**", "/hello", "/api/health", "/error", "/swagger-ui/**", "/api-docs/**").permitAll()
-					// Profile pictures are loaded by img tags (no token); the unguessable key in the URL protects them
-					.antMatchers(HttpMethod.GET, "/api/v1/avatars/*/*").permitAll()
-					// Calendar subscriptions are fetched by calendar apps (no token); the secret key in the URL protects them
-					.antMatchers(HttpMethod.GET, "/api/v2/calendar/*").permitAll()
-					.antMatchers("/api/v2/events/merge", "/api/v2/events/*/attendance", "/api/v2/events/*/response").authenticated()
-					// Remaining event endpoints serve guests too; EventMongoController enforces ownership.
-					.antMatchers("/api/v2/events/**").permitAll()
-					.anyRequest().authenticated().and().sessionManagement()
-					.sessionCreationPolicy(SessionCreationPolicy.STATELESS);
-
-			http.addFilterBefore(authRequestFilter, UsernamePasswordAuthenticationFilter.class);
+			http.cors(Customizer.withDefaults())
+					.csrf(csrf -> csrf.disable())
+					.authorizeHttpRequests(auth -> auth
+							// Order matters: the first matching rule wins.
+							.requestMatchers("/api/v1/auth/password").authenticated()
+							.requestMatchers("/api/v1/auth/**", "/hello", "/api/health", "/error", "/swagger-ui/**", "/api-docs/**").permitAll()
+							// Profile pictures are loaded by img tags (no token); the unguessable key in the URL protects them
+							.requestMatchers(HttpMethod.GET, "/api/v1/avatars/*/*").permitAll()
+							// Calendar subscriptions are fetched by calendar apps (no token); the secret key in the URL protects them
+							.requestMatchers(HttpMethod.GET, "/api/v2/calendar/*").permitAll()
+							.requestMatchers("/api/v2/events/merge", "/api/v2/events/*/attendance", "/api/v2/events/*/response").authenticated()
+							// Remaining event endpoints serve guests too; EventMongoController enforces ownership.
+							.requestMatchers("/api/v2/events/**").permitAll()
+							.anyRequest().authenticated())
+					.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+					.addFilterBefore(authRequestFilter, UsernamePasswordAuthenticationFilter.class);
 		}
 		return http.build();
 	}
 
 	@Bean
 	public WebSecurityCustomizer webSecurityCustomizer() {
-		return (web) -> web.ignoring().antMatchers("/api/health", "/api/health/**", "/error", "/swagger-ui/**",
+		return (web) -> web.ignoring().requestMatchers("/api/health", "/api/health/**", "/error", "/swagger-ui/**",
 				"/api-docs/**");
 	}
 

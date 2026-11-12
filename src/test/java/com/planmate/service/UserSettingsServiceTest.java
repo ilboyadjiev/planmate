@@ -62,7 +62,7 @@ class UserSettingsServiceTest {
 	}
 
 	private HttpStatus refused(Map<String, Object> changes) {
-		return assertThrows(ResponseStatusException.class, () -> service.update(1L, changes)).getStatus();
+		return HttpStatus.valueOf(assertThrows(ResponseStatusException.class, () -> service.update(1L, changes)).getStatusCode().value());
 	}
 
 	@Test

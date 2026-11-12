@@ -287,7 +287,7 @@ class FeedServiceTest {
 
 		org.springframework.web.server.ResponseStatusException denied = org.junit.jupiter.api.Assertions.assertThrows(
 				org.springframework.web.server.ResponseStatusException.class, () -> feed.getGroupFeed(ALICE, 7L, 0, 10, NOW));
-		assertEquals(org.springframework.http.HttpStatus.NOT_FOUND, denied.getStatus());
+		assertEquals(org.springframework.http.HttpStatus.NOT_FOUND, denied.getStatusCode());
 		org.junit.jupiter.api.Assertions.assertThrows(org.springframework.web.server.ResponseStatusException.class,
 				() -> feed.getGroupFeed(null, 7L, 0, 10, NOW));
 	}

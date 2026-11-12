@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration;
 import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.web.servlet.support.SpringBootServletInitializer;
@@ -12,7 +13,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@SpringBootApplication(exclude = HibernateJpaAutoConfiguration.class)
+// Persistence is a native Hibernate SessionFactory (see DataSourceConfig), not JPA, and the only Spring Data
+// repository is for MongoDB. Exclude the JPA auto-configuration so Spring Boot does not try to wire a shared JPA
+// EntityManagerFactory (which this app has no bean for) — Spring Data MongoDB configures itself separately.
+@SpringBootApplication(exclude = { HibernateJpaAutoConfiguration.class, JpaRepositoriesAutoConfiguration.class })
 @RestController
 @EnableJpaAuditing(auditorAwareRef = "auditorProvider")
 @EnableScheduling

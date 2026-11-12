@@ -82,7 +82,7 @@ class DiscoveryListenerIntegrationTest {
 		try (Consumer<String, String> dlq = new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(),
 				new StringDeserializer()).createConsumer()) {
 			broker.consumeFromAnEmbeddedTopic(dlq, "discovery.events.dlq");
-			ConsumerRecord<String, String> dead = KafkaTestUtils.getSingleRecord(dlq, "discovery.events.dlq", Duration.ofSeconds(20).toMillis());
+			ConsumerRecord<String, String> dead = KafkaTestUtils.getSingleRecord(dlq, "discovery.events.dlq", Duration.ofSeconds(20));
 			assertEquals("{not json", dead.value());
 			assertEquals("garbage", dead.key());
 			assertNotNull(dead.headers().lastHeader("kafka_dlt-exception-message"), "the reason travels with it");

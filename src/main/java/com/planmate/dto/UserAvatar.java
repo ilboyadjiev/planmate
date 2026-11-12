@@ -2,10 +2,10 @@ package com.planmate.dto;
 
 import java.time.Instant;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.Table;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
 /**
  * A user's profile picture: one small square JPEG (AvatarService.SIZE pixels, a few KB). Kept out of the user row

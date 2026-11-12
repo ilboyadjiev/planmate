@@ -58,10 +58,15 @@ public class CustomExceptionHandler {
 	public ResponseEntity<Object> handleResponseStatus(ResponseStatusException ex) {
 		Map<String, Object> body = new HashMap<>();
 		body.put("timestamp", LocalDateTime.now());
-		body.put("status", ex.getStatus().value());
-		String reason = ex.getReason() != null ? ex.getReason() : ex.getStatus().getReasonPhrase();
+		body.put("status", ex.getStatusCode().value());
+		String reason = ex.getReason();
+		if (reason == null) {
+			// getStatusCode() returns HttpStatusCode (Spring 6); resolve to a standard status for its phrase.
+			HttpStatus resolved = HttpStatus.resolve(ex.getStatusCode().value());
+			reason = resolved != null ? resolved.getReasonPhrase() : "";
+		}
 		body.put("error", reason);
 		body.put("message", reason);
-		return new ResponseEntity<>(body, ex.getResponseHeaders(), ex.getStatus());
+		return new ResponseEntity<>(body, ex.getResponseHeaders(), ex.getStatusCode());
 	}
 }
